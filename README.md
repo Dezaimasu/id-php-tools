@@ -1,1 +1,43 @@
 # id-php-tools
+
+### [DoomWadParser](DoomWadParser.php) progress:
+
+- ✅ Header
+  - ✅ IWAD/PWAD
+  - ✅ Number of lumps
+  - ✅ Start of the directory
+- ✅ Directory (lumps info list)
+  - ✅ Start of the lump
+  - ✅ Size of the lump
+  - ✅ Name of the lump
+- Lump
+  - Map data lumps
+    - ✅ Map Marker
+    - ✅ THINGS
+      - ✅ X Position 
+      - ✅ Y Position 
+      - ✅ Direction 
+      - ✅ Type 
+      - ✅ Flags
+    - ✅ LINEDEFS
+      - ✅ Vertex 1
+      - ✅ Vertex 2
+      - ✅ Flags
+      - ✅ Action Special
+      - ✅ Sector Tag
+      - ✅ Front Side
+      - ✅ Back Side
+    - ❌ SIDEDEFS
+    - ❌ VERTEXES
+    - ❌ SEGS
+    - ❌ SSECTORS
+    - ❌ NODES
+    - ❌ SECTORS
+    - ❌ REJECT
+    - ❌ BLOCKMAP
+  - ❌ Flats
+  - ❌ Sprites
+  - ❌ Patches
+  - ❌ Sounds
+  - ❌ Music
+  - ❌ etc.
