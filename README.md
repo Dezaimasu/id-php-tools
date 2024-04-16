@@ -27,7 +27,13 @@
       - ✅ Sector Tag
       - ✅ Front Side
       - ✅ Back Side
-    - ❌ SIDEDEFS
+    - ✅ SIDEDEFS
+      - ✅ X Offset
+      - ✅ Y Offset
+      - ✅ Upper Texture
+      - ✅ Lower Texture
+      - ✅ Middle Texture
+      - ✅ Sector
     - ❌ VERTEXES
     - ❌ SEGS
     - ❌ SSECTORS

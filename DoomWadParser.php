@@ -54,7 +54,7 @@ class DoomWadParser {
             $this->directory[] = [
                 'filepos'   => self::int32_t($dirStr, 0),
                 'size'      => self::int32_t($dirStr, 4),
-                'name'      => rtrim(substr($dirStr, 8, 8)),
+                'name'      => self::string8($dirStr, 8),
             ];
 
             $pos += $dirLen;
@@ -92,6 +92,7 @@ class DoomWadParser {
     	switch ($lumpName) {
     		case 'THINGS'   : return $this->parseThings($lump);
     		case 'LINEDEFS' : return $this->parseLinedefs($lump);
+    		case 'SIDEDEFS' : return $this->parseSidedefs($lump);
             default         : return null;
     	}
     }
@@ -118,6 +119,10 @@ class DoomWadParser {
         return $things;
     }
 
+    /**
+     * @param string $lump
+     * @return array
+     */
     private function parseLinedefs(string $lump): array{
         $linedefs = [];
         $lumpLen = strlen($lump);
@@ -139,6 +144,29 @@ class DoomWadParser {
     }
 
     /**
+     * @param string $lump
+     * @return array
+     */
+    private function parseSidedefs(string $lump): array{
+        $sidedefs = [];
+        $lumpLen = strlen($lump);
+        $entryLen = 30;
+        for ($pos = 0; $pos < $lumpLen; $pos += $entryLen) {
+            $thing = substr($lump, $pos, $entryLen);
+            $sidedefs[] = [
+                'xoffset'       => self::int16_t($thing, 0),
+                'yoffset'       => self::int16_t($thing, 2),
+                'uppertexture'  => self::string8($thing, 4),
+                'lowertexture'  => self::string8($thing, 12),
+                'middletexture' => self::string8($thing, 20),
+                'sector_ref'    => self::int16_t($thing, 28),
+            ];
+        }
+
+        return $sidedefs;
+    }
+
+    /**
      * @param string $str
      * @param int $offset
      * @return mixed
@@ -154,6 +182,15 @@ class DoomWadParser {
      */
     private static function int32_t(string $str, int $offset){
         return unpack('l', substr($str, $offset, 4))[1]; // length 4 is optional
+    }
+
+    /**
+     * @param string $str
+     * @param int $offset
+     * @return string
+     */
+    private static function string8(string $str, int $offset): string{
+    	return rtrim(substr($str, $offset, 8));
     }
 
 }
