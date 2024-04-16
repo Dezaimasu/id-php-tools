@@ -76,7 +76,7 @@ class DoomWadParser {
                 $lumpIndex = $mapIndex + $lumpNameIndex + 1;
                 $lumpEntry = $this->directory[$lumpIndex];
                 $lump = substr($this->wad, $lumpEntry['filepos'], $lumpEntry['size']);
-                $map[$lumpName] = $this->parseLump($lumpName, $lump);
+                $map[$lumpName] = $this->parseMapLump($lumpName, $lump);
             }
 
             $this->maps[$mapLumpInfo['name']] = $map;
@@ -86,84 +86,65 @@ class DoomWadParser {
     /**
      * @param string $lumpName
      * @param string $lump
-     * @return array|null
+     * @return array[]|null
      */
-    private function parseLump(string $lumpName, string $lump): ?array{
-    	switch ($lumpName) {
-    		case 'THINGS'   : return $this->parseThings($lump);
-    		case 'LINEDEFS' : return $this->parseLinedefs($lump);
-    		case 'SIDEDEFS' : return $this->parseSidedefs($lump);
-            default         : return null;
-    	}
-    }
+    private function parseMapLump(string $lumpName, string $lump): ?array{
+        $structures = [
+            'THINGS' => [
+                'x_position'    => 'int16_t',
+                'y_position'    => 'int16_t',
+                'angle'         => 'int16_t',
+                'type'          => 'int16_t',
+                'options'       => 'int16_t',
+            ],
+            'LINEDEFS' => [
+                'vertex_start'  => 'int16_t',
+                'vertex_end'    => 'int16_t',
+                'flags'         => 'int16_t',
+                'function'      => 'int16_t',
+                'tag'           => 'int16_t',
+                'sidedef_right' => 'int16_t',
+                'sidedef_left'  => 'int16_t',
+            ],
+            'SIDEDEFS' => [
+                'xoffset'       => 'int16_t',
+                'yoffset'       => 'int16_t',
+                'uppertexture'  => 'string8',
+                'lowertexture'  => 'string8',
+                'middletexture' => 'string8',
+                'sector_ref'    => 'int16_t',
+            ],
+        ];
 
-    /**
-     * @param string $lump
-     * @return array
-     */
-    private function parseThings(string $lump): array{
-        $things = [];
-        $lumpLen = strlen($lump);
-        $entryLen = 10;
-        for ($pos = 0; $pos < $lumpLen; $pos += $entryLen) {
-            $thing = substr($lump, $pos, $entryLen);
-            $things[] = [
-                'x_position'    => self::int16_t($thing, 0),
-                'y_position'    => self::int16_t($thing, 2),
-                'angle'         => self::int16_t($thing, 4),
-                'type'          => self::int16_t($thing, 6),
-                'options'       => self::int16_t($thing, 8),
-            ];
+        if (empty($struct = @$structures[$lumpName])) {
+        	return null;
         }
 
-        return $things;
-    }
+        $typesLength = [
+            'int16_t' => 2,
+            'int32_t' => 4,
+            'string8' => 8,
+        ];
 
-    /**
-     * @param string $lump
-     * @return array
-     */
-    private function parseLinedefs(string $lump): array{
-        $linedefs = [];
-        $lumpLen = strlen($lump);
-        $entryLen = 14;
-        for ($pos = 0; $pos < $lumpLen; $pos += $entryLen) {
-            $thing = substr($lump, $pos, $entryLen);
-            $linedefs[] = [
-                'vertex_start'  => self::int16_t($thing, 0),
-                'vertex_end'    => self::int16_t($thing, 2),
-                'flags'         => self::int16_t($thing, 4),
-                'function'      => self::int16_t($thing, 6),
-                'tag'           => self::int16_t($thing, 8),
-                'sidedef_right' => self::int16_t($thing, 10),
-                'sidedef_left'  => self::int16_t($thing, 12),
-            ];
+        $entryLen = 0;
+        foreach ($struct as $type) {
+            $entryLen += $typesLength[$type];
         }
 
-        return $linedefs;
-    }
+        $entries = [];
+        for ($pos = 0, $lumpLen = strlen($lump); $pos < $lumpLen; $pos += $entryLen) {
+            $entry = [];
+            $entryStr  = substr($lump, $pos, $entryLen);
+            $subPos = 0;
+            foreach ($struct as $key => $type) {
+                $entry[$key] = self::$type($entryStr, $subPos);
+                $subPos += $typesLength[$type];
+            }
 
-    /**
-     * @param string $lump
-     * @return array
-     */
-    private function parseSidedefs(string $lump): array{
-        $sidedefs = [];
-        $lumpLen = strlen($lump);
-        $entryLen = 30;
-        for ($pos = 0; $pos < $lumpLen; $pos += $entryLen) {
-            $thing = substr($lump, $pos, $entryLen);
-            $sidedefs[] = [
-                'xoffset'       => self::int16_t($thing, 0),
-                'yoffset'       => self::int16_t($thing, 2),
-                'uppertexture'  => self::string8($thing, 4),
-                'lowertexture'  => self::string8($thing, 12),
-                'middletexture' => self::string8($thing, 20),
-                'sector_ref'    => self::int16_t($thing, 28),
-            ];
+            $entries[] = $entry;
         }
 
-        return $sidedefs;
+        return $entries;
     }
 
     /**
