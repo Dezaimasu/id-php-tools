@@ -19,9 +19,9 @@ class DoomWadParser {
     private function __construct(string $filepath){
         $this->wad = file_get_contents($filepath);
 
-        $this->getHeader();
-        $this->getDirectory();
-        $this->getMaps();
+        $this->readHeader();
+        $this->readDirectory();
+        $this->readMaps();
     }
 
     /**
@@ -35,10 +35,10 @@ class DoomWadParser {
     /**
      *
      */
-    private function getHeader(): void{
+    private function readHeader(): void{
         $this->header = [
             'identification' => substr($this->wad, 0, 4),
-        ] + $this->parseStructure(substr($this->wad, 4, 8), [
+        ] + $this->readStructure(substr($this->wad, 4, 8), [
             'numlumps'      => 'int32_t',
             'infotableofs'  => 'int32_t',
         ])[0];
@@ -47,12 +47,12 @@ class DoomWadParser {
     /**
      *
      */
-    private function getDirectory(): void{
+    private function readDirectory(): void{
         $dirLen = 16;
         $offset = $this->header['infotableofs'];
         for ($i = 0; $i < $this->header['numlumps']; $i++) {
             $dirStr = substr($this->wad, $offset, $dirLen);
-            $this->directory[] = $this->parseStructure($dirStr, [
+            $this->directory[] = $this->readStructure($dirStr, [
                 'filepos'   => 'int32_t',
                 'size'      => 'int32_t',
                 'name'      => 'string8',
@@ -62,7 +62,7 @@ class DoomWadParser {
         }
     }
 
-    private function getMaps(): void{
+    private function readMaps(): void{
         $d1MapName = '/^E[1-4]M[1-9]$/';
         $d2MapName = '/^MAP([0-2][1-9]|3[0-2])$/';
 
@@ -149,11 +149,11 @@ class DoomWadParser {
                 $lump = substr($this->wad, $lumpEntry['filepos'], $lumpEntry['size']);
 
                 if ($lumpName === 'REJECT') {
-                    $map[$lumpName] = $this->parseRejectLump($lump);
+                    $map[$lumpName] = $this->readRejectLump($lump);
                 } elseif ($lumpName === 'BLOCKMAP') {
-                    $map[$lumpName] = $this->parseBlockmapLump($lump);
+                    $map[$lumpName] = $this->readBlockmapLump($lump);
                 } else {
-                    $map[$lumpName] = $this->parseStructure($lump, $structures[$lumpName]);
+                    $map[$lumpName] = $this->readStructure($lump, $structures[$lumpName]);
                 }
             }
 
@@ -166,7 +166,7 @@ class DoomWadParser {
      * @param array $structure
      * @return array[]|null
      */
-    private function parseStructure(string $lump, array $structure): ?array{
+    private function readStructure(string $lump, array $structure): ?array{
         $typesLength = [
             'int16_t'   => 2,
             'uint16_t'  => 2,
@@ -199,7 +199,7 @@ class DoomWadParser {
      * @param string $lump
      * @return array
      */
-    private function parseRejectLump(string $lump): array{
+    private function readRejectLump(string $lump): array{
         return str_split(bin2hex($lump), 2);
     }
 
@@ -207,8 +207,8 @@ class DoomWadParser {
      * @param string $lump
      * @return array
      */
-    private function parseBlockmapLump(string $lump): array{
-        $blockmap = $this->parseStructure(substr($lump, 0, 8), [
+    private function readBlockmapLump(string $lump): array{
+        $blockmap = $this->readStructure(substr($lump, 0, 8), [
             'xorigin' => 'int16_t',
             'yorigin' => 'int16_t',
             'xblocks' => 'int16_t',
