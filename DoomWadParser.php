@@ -48,16 +48,16 @@ class DoomWadParser {
      */
     private function getDirectory(): void{
         $dirLen = 16;
-        $pos = $this->header['infotableofs'];
+        $offset = $this->header['infotableofs'];
         for ($i = 0; $i < $this->header['numlumps']; $i++) {
-            $dirStr = substr($this->wad, $pos, $dirLen);
+            $dirStr = substr($this->wad, $offset, $dirLen);
             $this->directory[] = [
                 'filepos'   => self::int32_t($dirStr, 0),
                 'size'      => self::int32_t($dirStr, 4),
                 'name'      => self::string8($dirStr, 8),
             ];
 
-            $pos += $dirLen;
+            $offset += $dirLen;
         }
     }
 
@@ -65,30 +65,6 @@ class DoomWadParser {
         $d1MapName = '/^E[1-4]M[1-9]$/';
         $d2MapName = '/^MAP([0-2][1-9]|3[0-2])$/';
 
-        foreach ($this->directory as $mapIndex => $mapLumpInfo) {
-            if (!preg_match($d1MapName, $mapLumpInfo['name']) && !preg_match($d2MapName, $mapLumpInfo['name'])) {
-                continue;
-            }
-
-            $map = [];
-            $lumpNames = ['THINGS', 'LINEDEFS', 'SIDEDEFS', 'VERTEXES', 'SEGS', 'SSECTORS', 'NODES', 'SECTORS', 'REJECT', 'BLOCKMAP'];
-            foreach ($lumpNames as $lumpNameIndex => $lumpName) {
-                $lumpIndex = $mapIndex + $lumpNameIndex + 1;
-                $lumpEntry = $this->directory[$lumpIndex];
-                $lump = substr($this->wad, $lumpEntry['filepos'], $lumpEntry['size']);
-                $map[$lumpName] = $this->parseMapLump($lumpName, $lump);
-            }
-
-            $this->maps[$mapLumpInfo['name']] = $map;
-        }
-    }
-
-    /**
-     * @param string $lumpName
-     * @param string $lump
-     * @return array[]|null
-     */
-    private function parseMapLump(string $lumpName, string $lump): ?array{
         $structures = [
             'THINGS' => [
                 'x_position'    => 'int16_t',
@@ -155,33 +131,61 @@ class DoomWadParser {
                 'special_sector'    => 'int16_t',
                 'tag'               => 'int16_t',
             ],
-            'REJECT' => [],
-            'BLOCKMAP' => [],
+            'REJECT' => null,
+            'BLOCKMAP' => null,
         ];
+        $lumpNames = array_keys($structures);
 
-        if (empty($struct = @$structures[$lumpName])) {
-        	return null;
+        foreach ($this->directory as $mapIndex => $mapLumpInfo) {
+            if (!preg_match($d1MapName, $mapLumpInfo['name']) && !preg_match($d2MapName, $mapLumpInfo['name'])) {
+                continue;
+            }
+
+            $map = [];
+            foreach ($lumpNames as $lumpNameIndex => $lumpName) {
+                $lumpIndex = $mapIndex + $lumpNameIndex + 1;
+                $lumpEntry = $this->directory[$lumpIndex];
+                $lump = substr($this->wad, $lumpEntry['filepos'], $lumpEntry['size']);
+
+                if ($lumpName === 'REJECT') {
+                    $map[$lumpName] = $this->parseRejectLump($lump);
+                } elseif ($lumpName === 'BLOCKMAP') {
+                    $map[$lumpName] = $this->parseBlockmapLump($lump);
+                } else {
+                    $map[$lumpName] = $this->parseLumpStructure($lump, $structures[$lumpName]);
+                }
+            }
+
+            $this->maps[$mapLumpInfo['name']] = $map;
         }
+    }
 
+    /**
+     * @param string $lump
+     * @param array $structure
+     * @return array[]|null
+     */
+    private function parseLumpStructure(string $lump, array $structure): ?array{
         $typesLength = [
-            'int16_t' => 2,
-            'int32_t' => 4,
-            'string8' => 8,
+            'int16_t'   => 2,
+            'uint16_t'  => 2,
+            'int32_t'   => 4,
+            'string8'   => 8,
         ];
 
         $entryLen = 0;
-        foreach ($struct as $type) {
+        foreach ($structure as $type) {
             $entryLen += $typesLength[$type];
         }
 
         $entries = [];
-        for ($pos = 0, $lumpLen = strlen($lump); $pos < $lumpLen; $pos += $entryLen) {
+        for ($offset = 0, $lumpLen = strlen($lump); $offset < $lumpLen; $offset += $entryLen) {
             $entry = [];
-            $entryStr  = substr($lump, $pos, $entryLen);
-            $subPos = 0;
-            foreach ($struct as $key => $type) {
-                $entry[$key] = self::$type($entryStr, $subPos);
-                $subPos += $typesLength[$type];
+            $entryStr  = substr($lump, $offset, $entryLen);
+            $subOffset = 0;
+            foreach ($structure as $key => $type) {
+                $entry[$key] = self::$type($entryStr, $subOffset);
+                $subOffset += $typesLength[$type];
             }
 
             $entries[] = $entry;
@@ -191,20 +195,75 @@ class DoomWadParser {
     }
 
     /**
+     * @param string $lump
+     * @return array
+     */
+    private function parseRejectLump(string $lump): array{
+        return str_split(bin2hex($lump), 2);
+    }
+
+    /**
+     * @param string $lump
+     * @return array
+     */
+    private function parseBlockmapLump(string $lump): array{
+        $blockmap = $this->parseLumpStructure(substr($lump, 0, 8), [
+            'xorigin' => 'int16_t',
+            'yorigin' => 'int16_t',
+            'xblocks' => 'int16_t',
+            'yblocks' => 'int16_t',
+        ])[0];
+
+        $blocksCount = $blockmap['xblocks'] * $blockmap['yblocks'];
+
+        $lumpLen = strlen($lump);
+        $lumpWithoutHeader = substr($lump, 8);
+
+        $blockmap['listoffsets'] = [];
+        for ($blockIndex = 0; $blockIndex < $blocksCount; $blockIndex++) {
+            $blockmap['listoffsets'][] = self::uint16_t($lumpWithoutHeader, $blockIndex * 2);
+        }
+
+        $blockmap['blocklists'] = [];
+        foreach ($blockmap['listoffsets'] as $blockOffset) {
+            $blocklist = [];
+            $offset = $blockOffset * 2;
+            do {
+                $linedef = self::int16_t($lump, $offset);
+                $blocklist[] = $linedef;
+                $offset += 2;
+            } while ($linedef !== -1 && $offset < $lumpLen);
+
+            $blockmap['blocklists'][] = $blocklist;
+        }
+
+        return $blockmap;
+    }
+
+    /**
      * @param string $str
      * @param int $offset
-     * @return mixed
+     * @return int
      */
-    private static function int16_t(string $str, int $offset){
+    private static function int16_t(string $str, int $offset): int{
         return unpack('s', substr($str, $offset, 2))[1]; // length 2 is optional
     }
 
     /**
      * @param string $str
      * @param int $offset
-     * @return mixed
+     * @return int
      */
-    private static function int32_t(string $str, int $offset){
+    private static function uint16_t(string $str, int $offset): int{
+        return unpack('S', substr($str, $offset, 2))[1]; // length 2 is optional
+    }
+
+    /**
+     * @param string $str
+     * @param int $offset
+     * @return int
+     */
+    private static function int32_t(string $str, int $offset): int{
         return unpack('l', substr($str, $offset, 4))[1]; // length 4 is optional
     }
 
@@ -220,3 +279,5 @@ class DoomWadParser {
 }
 
 $wad = DoomWadParser::open('E:\Doom\IWADs\DOOM.WAD');
+
+$a = 1;

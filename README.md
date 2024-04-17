@@ -15,8 +15,8 @@
     - ✅ SSECTORS
     - ✅ NODES
     - ✅ SECTORS
-    - ❌ REJECT
-    - ❌ BLOCKMAP
+    - ✅ REJECT
+    - ✅ BLOCKMAP
   - ❌ Flats
   - ❌ Sprites
   - ❌ Patches
