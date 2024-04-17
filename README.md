@@ -23,6 +23,8 @@
     - ❌ PNG format
   - ✔️ Patches
     - ❌ PNG format
+  - ✔️ Palettes
+  - ✔️ Colormaps
   - ❌ Sounds
   - ❌ Music
   - ❌ etc.

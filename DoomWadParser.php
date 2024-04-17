@@ -11,6 +11,8 @@ class DoomWadParser {
 
     public array $header = [];
     public array $directory = [];
+    public array $palettes = [];
+    public array $colormaps = [];
     public array $maps = [];
     public array $graphics = [ // TODO: merge numbered?
         'flats'     => [],
@@ -91,8 +93,8 @@ class DoomWadParser {
         $d1MapName = '/^E[1-4]M[1-9]$/';
         $d2MapName = '/^MAP([0-2][1-9]|3[0-2])$/';
 
-        $startMarkers = array_keys($this->markers);
-        $endMarkers = array_values($this->markers);
+        $allStartMarkers = array_keys($this->markers);
+        $allEndMarkers = array_values($this->markers);
         $skip = array_merge([
             'THINGS',
             'LINEDEFS',
@@ -104,7 +106,7 @@ class DoomWadParser {
             'SECTORS',
             'REJECT',
             'BLOCKMAP',
-        ], $endMarkers);
+        ], $allEndMarkers);
 
         $currentSequenceEndMarker = null;
         foreach ($this->directory as $lumpIndex => $lumpInfo) {
@@ -118,20 +120,23 @@ class DoomWadParser {
             }
 
             if (preg_match($d1MapName, $lumpName) || preg_match($d2MapName, $lumpName)) {
-                $this->readMap($lumpInfo, $lumpIndex);
-            } elseif (in_array($lumpName, $startMarkers, true)) {
-                $this->readDelimitedLumpSequences($lumpInfo['name'], $lumpIndex);
+                $this->readMap($lumpIndex);
+            } elseif (in_array($lumpName, $allStartMarkers, true)) {
+                $this->readDelimitedLumpSequences($lumpIndex);
                 $currentSequenceEndMarker = $this->markers[$lumpName];
+            } elseif ($lumpName === 'PLAYPAL') {
+                $this->readPalettes($lumpIndex);
+            } elseif ($lumpName === 'COLORMAP') {
+                $this->readColormap($lumpIndex);
             }
             // TODO: other lumps
         }
     }
 
     /**
-     * @param array $mapLumpInfo
      * @param int $mapLumpIndex
      */
-    private function readMap(array $mapLumpInfo, int $mapLumpIndex): void{
+    private function readMap(int $mapLumpIndex): void{
         $structures = [
             'THINGS' => [
                 'x_position'    => 'int16_t',
@@ -217,18 +222,16 @@ class DoomWadParser {
             }
         }
 
-        $this->maps[$mapLumpInfo['name']] = $map;
+        $mapName = $this->getLumpByIndex($mapLumpIndex)['name'];
+        $this->maps[$mapName] = $map;
     }
 
     /**
-     * @param string $startMarkerName
      * @param int $startMarkerIndex
      * @return int      end marker index
      */
-    private function readDelimitedLumpSequences(string $startMarkerName, int $startMarkerIndex): int{
-        $startMarkers = array_keys($this->markers);
-
-        $directories = [
+    private function readDelimitedLumpSequences(int $startMarkerIndex): int{
+        $categories = [
             'F_START'   => 'flats',
             'F1_START'  => 'flats1',
             'F2_START'  => 'flats2',
@@ -239,6 +242,9 @@ class DoomWadParser {
             'P3_START'  => 'patches3',
         ];
 
+        $startMarkerName = $this->getLumpByIndex($startMarkerIndex)['name'];
+
+        $allStartMarkers = array_keys($this->markers);
         $endMarker = $this->markers[$startMarkerName];
         $lumpName = $startMarkerName;
         $lumpIndex = $startMarkerIndex;
@@ -250,15 +256,39 @@ class DoomWadParser {
             if ($lumpName === $endMarker) {
             	break;
             }
-            if (in_array($lumpName, $startMarkers, true)) {
-                $lumpIndex = $this->readDelimitedLumpSequences($lumpName, $lumpIndex);
+            if (in_array($lumpName, $allStartMarkers, true)) {
+                $lumpIndex = $this->readDelimitedLumpSequences($lumpIndex);
                 continue;
             }
 
-            $this->graphics[$directories[$startMarkerName]][$lumpName] = $lump; // TODO: read graphics lump
+            $category = $categories[$startMarkerName];
+            $this->graphics[$category][$lumpName] = strpos($category, 'flats') === 0 ?
+                $this->readFlatLump($lump) :
+                $this->readPictureLump($lump);
         }
 
         return $lumpIndex;
+    }
+
+    /**
+     * @param int $lumpIndex
+     */
+    private function readPalettes(int $lumpIndex): void{
+        $lump = $this->getLumpByIndex($lumpIndex)['lump'];
+
+        $palettes = str_split(bin2hex($lump), 768 * 2);
+        foreach ($palettes as $palette) {
+            $this->palettes[] = str_split($palette, 6);
+        }
+    }
+
+    /**
+     * @param int $lumpIndex
+     */
+    private function readColormap(int $lumpIndex): void{
+        $lump = $this->getLumpByIndex($lumpIndex)['lump'];
+
+        $this->colormaps = str_split(bin2hex($lump), 256 * 2);
     }
 
     /**
@@ -339,6 +369,22 @@ class DoomWadParser {
         }
 
         return $blockmap;
+    }
+
+    /**
+     * @param string $lump
+     * @return string
+     */
+    private function readFlatLump(string $lump): string{
+        return $lump; // TODO
+    }
+
+    /**
+     * @param string $lump
+     * @return string
+     */
+    private function readPictureLump(string $lump): string{
+        return $lump; // TODO
     }
 
     /**
