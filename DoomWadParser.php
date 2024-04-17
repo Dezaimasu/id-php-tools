@@ -37,10 +37,11 @@ class DoomWadParser {
      */
     private function getHeader(): void{
         $this->header = [
-            'identification'    => substr($this->wad, 0, 4),
-            'numlumps'          => self::int32_t($this->wad, 4),
-            'infotableofs'      => self::int32_t($this->wad, 8),
-        ];
+            'identification' => substr($this->wad, 0, 4),
+        ] + $this->parseStructure(substr($this->wad, 4, 8), [
+            'numlumps'      => 'int32_t',
+            'infotableofs'  => 'int32_t',
+        ])[0];
     }
 
     /**
@@ -51,11 +52,11 @@ class DoomWadParser {
         $offset = $this->header['infotableofs'];
         for ($i = 0; $i < $this->header['numlumps']; $i++) {
             $dirStr = substr($this->wad, $offset, $dirLen);
-            $this->directory[] = [
-                'filepos'   => self::int32_t($dirStr, 0),
-                'size'      => self::int32_t($dirStr, 4),
-                'name'      => self::string8($dirStr, 8),
-            ];
+            $this->directory[] = $this->parseStructure($dirStr, [
+                'filepos'   => 'int32_t',
+                'size'      => 'int32_t',
+                'name'      => 'string8',
+            ])[0];
 
             $offset += $dirLen;
         }
@@ -152,7 +153,7 @@ class DoomWadParser {
                 } elseif ($lumpName === 'BLOCKMAP') {
                     $map[$lumpName] = $this->parseBlockmapLump($lump);
                 } else {
-                    $map[$lumpName] = $this->parseLumpStructure($lump, $structures[$lumpName]);
+                    $map[$lumpName] = $this->parseStructure($lump, $structures[$lumpName]);
                 }
             }
 
@@ -165,7 +166,7 @@ class DoomWadParser {
      * @param array $structure
      * @return array[]|null
      */
-    private function parseLumpStructure(string $lump, array $structure): ?array{
+    private function parseStructure(string $lump, array $structure): ?array{
         $typesLength = [
             'int16_t'   => 2,
             'uint16_t'  => 2,
@@ -207,7 +208,7 @@ class DoomWadParser {
      * @return array
      */
     private function parseBlockmapLump(string $lump): array{
-        $blockmap = $this->parseLumpStructure(substr($lump, 0, 8), [
+        $blockmap = $this->parseStructure(substr($lump, 0, 8), [
             'xorigin' => 'int16_t',
             'yorigin' => 'int16_t',
             'xblocks' => 'int16_t',
@@ -279,5 +280,3 @@ class DoomWadParser {
 }
 
 $wad = DoomWadParser::open('E:\Doom\IWADs\DOOM.WAD');
-
-$a = 1;
