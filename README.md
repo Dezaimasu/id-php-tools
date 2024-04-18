@@ -20,7 +20,7 @@
   - ✔️ Flats
     - ❌ PNG format
   - ✔️ Sprites
-    - ❌ PNG format
+    - ✔️ PNG format
   - ✔️ Patches
     - ❌ PNG format
   - ✔️ Palettes

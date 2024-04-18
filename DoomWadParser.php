@@ -56,6 +56,15 @@ class DoomWadParser {
         return new self($filepath);
     }
 
+    public function savePicture(string $lumpName, string $folderPath): void{
+        $pixelData = $this->graphics['sprites'][$lumpName]; // TODO: find in $this->graphics by $lumpName
+        if (empty($pixelData)) {
+        	return;
+        }
+
+        $this->drawPicture($pixelData, "$folderPath/$lumpName.png");
+    }
+
     /**
      *
      */
@@ -385,6 +394,8 @@ class DoomWadParser {
     }
 
     /**
+     * TODO: fix columns with transparent pixels in the middle
+     *
      * @param string $lump
      * @return array
      */
@@ -427,6 +438,30 @@ class DoomWadParser {
         }
 
         return $picture;
+    }
+
+    /**
+     * @param array $pixelData
+     * @param string $filepath
+     */
+    private function drawPicture(array $pixelData, string $filepath): void{
+        $defaultPalette = $this->palettes[0];
+
+        $gd = imagecreatetruecolor($pixelData['width'], $pixelData['height']);
+        $transparency = imagecolorallocatealpha($gd, 0, 0, 0, 127);
+        imagecolortransparent($gd, $transparency);
+        imagefill($gd, 0, 0, $transparency);
+
+        foreach ($pixelData['columns'] as $colNum => $columnData) {
+            foreach ($columnData['pixels'] as $pixelNum => $pixelColor) {
+                $color = imagecolorallocate($gd, ...$defaultPalette[$pixelColor]);
+                imagesetpixel($gd, $colNum, $columnData['rowstart'] + $pixelNum, $color);
+            }
+        }
+
+        imagetruecolortopalette($gd, false, 255);
+
+        imagepng($gd, $filepath);
     }
 
     /**
@@ -482,3 +517,4 @@ class DoomWadParser {
 }
 
 $wad = DoomWadParser::open('E:\Doom\IWADs\DOOM.WAD');
+$wad->savePicture('CHGGA0', 'E:\Doom\IWADs');
