@@ -381,10 +381,47 @@ class DoomWadParser {
 
     /**
      * @param string $lump
-     * @return string
+     * @return array
      */
-    private function readPictureLump(string $lump): string{
-        return $lump; // TODO
+    private function readPictureLump(string $lump): array{
+        $picture = $this->readStructure(substr($lump, 0, 8), [
+            'width'         => 'int16_t',
+            'height'        => 'int16_t',
+            'left_offset'   => 'int16_t',
+            'top_offset'    => 'int16_t',
+        ])[0];
+
+        $picture['columns'] = [];
+        for ($colNum = 0; $colNum < $picture['width']; $colNum++) {
+            $colOffset = self::int32_t($lump, 8 + $colNum * 4);
+
+            $column = [
+                'rowstart'  => null,
+                'pixels'    => [],
+            ];
+
+            $byteNum = 0;
+            $pixelsCount = 0;
+            do {
+                $byte = ord($lump[$colOffset + $byteNum]);
+
+                if ($byteNum === 0) {
+                    $column['rowstart'] = $byte;
+                }
+                if ($byteNum === 1) {
+                    $pixelsCount = $byte;
+                }
+                if ($byteNum >= 3 && $byteNum < $pixelsCount + 3) {
+                    $column['pixels'][] = $byte;
+                }
+
+                $byteNum++;
+            } while ($byte !== 255);
+
+            $picture['columns'][] = $column;
+        }
+
+        return $picture;
     }
 
     /**

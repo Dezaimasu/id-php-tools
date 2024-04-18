@@ -28,3 +28,4 @@
   - ❌ Sounds
   - ❌ Music
   - ❌ etc.
+- ✔️ Picture format to pixel data
