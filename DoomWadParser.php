@@ -276,9 +276,14 @@ class DoomWadParser {
     private function readPalettes(int $lumpIndex): void{
         $lump = $this->getLumpByIndex($lumpIndex)['lump'];
 
-        $palettes = str_split(bin2hex($lump), 768 * 2);
-        foreach ($palettes as $palette) {
-            $this->palettes[] = str_split($palette, 6);
+        $palettes = str_split($lump, 768);
+        foreach ($palettes as $paletteStr) {
+            $palette = [];
+            foreach (str_split($paletteStr, 3) as $colorStr) {
+                $palette[] = unpack('C*', $colorStr);
+            }
+
+            $this->palettes[] = $palette;
         }
     }
 
