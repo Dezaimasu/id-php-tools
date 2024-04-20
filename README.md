@@ -17,15 +17,21 @@
     - ✔️ SECTORS
     - ✔️ REJECT
     - ✔️ BLOCKMAP
+  - ✔️ Palettes
+  - ✔️ Colormaps
   - ✔️ Flats
     - ❌ PNG format
   - ✔️ Sprites
     - ✔️ PNG format
   - ✔️ Patches
-    - ❌ PNG format
-  - ✔️ Palettes
-  - ✔️ Colormaps
-  - ❌ Sounds
+    - ✔️ PNG format
+  - ✔️ Misc graphics
+    - ✔️ PNG format
+  - ❌ Demos
+  - ❌ ENDOOM
+  - ❌ PNAMES
+  - ❌ GENMIDI
+  - ❌ DMXGUS
+  - ❌ PC Speaker Sound Effects
+  - ❌ Soundcard Sound Effects
   - ❌ Music
-  - ❌ etc.
-- ✔️ Picture format to pixel data
