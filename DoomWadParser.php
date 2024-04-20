@@ -394,8 +394,6 @@ class DoomWadParser {
     }
 
     /**
-     * TODO: fix columns with transparent pixels in the middle
-     *
      * @param string $lump
      * @return array
      */
@@ -407,35 +405,39 @@ class DoomWadParser {
             'top_offset'    => 'int16_t',
         ])[0];
 
-        $picture['columns'] = [];
+        $picture['posts'] = [];
         for ($colNum = 0; $colNum < $picture['width']; $colNum++) {
             $colOffset = self::int32_t($lump, 8 + $colNum * 4);
 
-            $column = [
-                'rowstart'  => null,
-                'pixels'    => [],
-            ];
-
+            $postId = null;
+            $postStart = 0;
+            $postEnd = null;
             $byteNum = 0;
-            $pixelsCount = 0;
-            do {
-                $byte = ord($lump[$colOffset + $byteNum]);
 
-                if ($byteNum === 0) {
-                    $column['rowstart'] = $byte;
-                }
-                if ($byteNum === 1) {
+            while (($byte = ord($lump[$colOffset + $byteNum])) !== 255) {
+                if ($byteNum === $postStart) {
+                    $rowStart = $byte;
+                    $postId = "$colNum-$rowStart";
+
+                    $picture['posts'][$postId] = [
+                        'column'    => $colNum,
+                        'rowstart'  => $rowStart,
+                        'pixels'    => [],
+                    ];
+                } elseif ($byteNum === $postStart + 1) {
                     $pixelsCount = $byte;
-                }
-                if ($byteNum >= 3 && $byteNum < $pixelsCount + 3) {
-                    $column['pixels'][] = $byte;
+                    $postEnd = $postStart + $pixelsCount + 3;
+                } elseif ($byteNum >= $postStart + 3 && $byteNum < $postEnd) {
+                    $picture['posts'][$postId]['pixels'][] = $byte;
+                } elseif ($byteNum === $postEnd) {
+                    $postStart = $byteNum + 1;
                 }
 
                 $byteNum++;
-            } while ($byte !== 255);
-
-            $picture['columns'][] = $column;
+            }
         }
+
+        $picture['posts'] = array_values($picture['posts']);
 
         return $picture;
     }
@@ -452,10 +454,10 @@ class DoomWadParser {
         imagecolortransparent($gd, $transparency);
         imagefill($gd, 0, 0, $transparency);
 
-        foreach ($pixelData['columns'] as $colNum => $columnData) {
-            foreach ($columnData['pixels'] as $pixelNum => $pixelColor) {
+        foreach ($pixelData['posts'] as $postData) {
+            foreach ($postData['pixels'] as $pixelNum => $pixelColor) {
                 $color = imagecolorallocate($gd, ...$defaultPalette[$pixelColor]);
-                imagesetpixel($gd, $colNum, $columnData['rowstart'] + $pixelNum, $color);
+                imagesetpixel($gd, $postData['column'], $postData['rowstart'] + $pixelNum, $color);
             }
         }
 
