@@ -411,11 +411,40 @@ class DoomWadParser {
     }
 
     /**
+     * TODO: fix wrong colors
+     *
      * @param string $lump
-     * @return string
+     * @return array
      */
-    private function readFlatLump(string $lump): string{
-        return $lump; // TODO
+    private function readFlatLump(string $lump): array{
+        $flatSize = 64;
+        $picture = [
+            'width'         => $flatSize,
+            'height'        => $flatSize,
+            'left_offset'   => 0,
+            'top_offset'    => 0,
+            'posts'         => [],
+        ];
+
+        $rowStart = 0;
+        foreach (str_split($lump, $flatSize) as $rowNum => $rowBytes) {
+            foreach (str_split($rowBytes) as $colNum => $byte) {
+                $postId = "$colNum-$rowStart";
+                if (!isset($picture['posts'][$postId])) {
+                    $picture['posts'][$postId] = [
+                        'column'    => $colNum,
+                        'rowstart'  => $rowStart,
+                        'pixels'    => [],
+                    ];
+                }
+
+                $picture['posts'][$postId]['pixels'][$rowNum] = ord($byte);
+            }
+        }
+
+        $picture['posts'] = array_values($picture['posts']);
+
+        return $picture;
     }
 
     /**
@@ -545,4 +574,4 @@ class DoomWadParser {
 }
 
 $wad = DoomWadParser::open('E:\Doom\IWADs\DOOM.WAD');
-$wad->savePicture('W17_1', 'E:\Doom\IWADs');
+$wad->savePicture('FLOOR0_1', 'E:\Doom\IWADs');
