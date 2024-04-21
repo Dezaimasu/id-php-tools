@@ -305,7 +305,7 @@ class DoomWadParser {
         foreach ($palettes as $paletteStr) {
             $palette = [];
             foreach (str_split($paletteStr, 3) as $colorStr) {
-                $palette[] = unpack('C*', $colorStr);
+                $palette[] = array_values(unpack('C*', $colorStr));
             }
 
             $this->palettes[] = $palette;
@@ -317,8 +317,9 @@ class DoomWadParser {
      */
     private function readColormap(int $lumpIndex): void{
         $lump = $this->getLumpByIndex($lumpIndex)['lump'];
-
-        $this->colormaps = str_split(bin2hex($lump), 256 * 2);
+        foreach (str_split($lump, 256) as $colormap) {
+            $this->colormaps[] = array_map('ord', str_split($colormap));
+        }
     }
 
     /**
@@ -411,8 +412,6 @@ class DoomWadParser {
     }
 
     /**
-     * TODO: fix wrong colors
-     *
      * @param string $lump
      * @return array
      */
@@ -503,22 +502,38 @@ class DoomWadParser {
     private function drawPicture(array $pixelData, string $filepath): void{
         $defaultPalette = $this->palettes[0];
 
-        $gd = imagecreatetruecolor($pixelData['width'], $pixelData['height']);
-        $transparency = imagecolorallocatealpha($gd, 0, 0, 0, 127); // TODO: maybe do not add transparency where not needed
-        imagecolortransparent($gd, $transparency);
-        imagefill($gd, 0, 0, $transparency);
-
+        $pixels = [];
         foreach ($pixelData['posts'] as $postData) {
             foreach ($postData['pixels'] as $pixelNum => $pixelColor) {
-                $color = imagecolorallocate($gd, ...$defaultPalette[$pixelColor]);
-                imagesetpixel($gd, $postData['column'], $postData['rowstart'] + $pixelNum, $color);
+                $xy = $postData['column'] . '-' . ($postData['rowstart'] + $pixelNum);
+                $pixels[$xy] = $defaultPalette[$pixelColor];
             }
         }
 
-        imagetruecolortopalette($gd, false, 255);
+        $gd = imagecreatetruecolor($pixelData['width'], $pixelData['height']);
+        imagealphablending($gd, false);
+        $transparentColor = imagecolorallocatealpha($gd, 0, 255, 255, 127);
+        imagecolortransparent($gd, $transparentColor);
         imageresolution($gd, 72);
 
-        imagepng($gd, $filepath);
+        for ($x = 0; $x < $pixelData['width']; $x++) {
+        	for ($y = 0; $y < $pixelData['height']; $y++) {
+                if (isset($pixels["$x-$y"])) {
+                    [$red, $green, $blue] = $pixels["$x-$y"];
+                    $color = imagecolorallocatealpha($gd, $red, $green, $blue, 0);
+                } else {
+                    $color = $transparentColor;
+                }
+
+                imagesetpixel($gd, $x, $y, $color);
+            }
+        }
+
+//        imagetruecolortopalette($gd, false, 255); // GD ruins the 8-bit palette, using pngquant instead
+
+        $tmpFilepath = "$filepath.tmp";
+        imagepng($gd, $tmpFilepath);
+        shell_exec("pngquant 256 $tmpFilepath --output $filepath");
     }
 
     /**
