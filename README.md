@@ -20,7 +20,7 @@
   - ✔️ Palettes
   - ✔️ Colormaps
   - ✔️ Flats
-    - ❌ PNG format
+    - ✔️ PNG format
   - ✔️ Sprites
     - ✔️ PNG format
   - ✔️ Patches
@@ -29,7 +29,7 @@
     - ✔️ PNG format
   - ❌ Demos
   - ❌ ENDOOM
-  - ❌ PNAMES
+  - ✔️ PNAMES
   - ❌ GENMIDI
   - ❌ DMXGUS
   - ❌ PC Speaker Sound Effects

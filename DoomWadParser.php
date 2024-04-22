@@ -13,6 +13,7 @@ class DoomWadParser {
     public array $directory = [];
     public array $palettes = [];
     public array $colormaps = [];
+    public array $patchNames = [];
     public array $maps = [];
     public array $graphics = [
         'flats'     => [],
@@ -137,7 +138,7 @@ class DoomWadParser {
             } elseif ($lumpName === 'ENDOOM') {
                 continue; // TODO
             } elseif ($lumpName === 'PNAMES') {
-                continue; // TODO
+                $this->readPatchNames($lumpIndex);
             } elseif ($lumpName === 'GENMIDI') {
                 continue; // TODO
             } elseif ($lumpName === 'DMXGUS') {
@@ -319,6 +320,17 @@ class DoomWadParser {
         $lump = $this->getLumpByIndex($lumpIndex)['lump'];
         foreach (str_split($lump, 256) as $colormap) {
             $this->colormaps[] = array_map('ord', str_split($colormap));
+        }
+    }
+
+    /**
+     * @param int $lumpIndex
+     */
+    private function readPatchNames(int $lumpIndex): void{
+        $lump = $this->getLumpByIndex($lumpIndex)['lump'];
+        $patchesCount = self::int32_t($lump, 0);
+        for ($patchNum = 0; $patchNum < $patchesCount; $patchNum++) {
+            $this->patchNames[] = self::string8($lump, 4 + (8 * $patchNum));
         }
     }
 
@@ -589,4 +601,4 @@ class DoomWadParser {
 }
 
 $wad = DoomWadParser::open('E:\Doom\IWADs\DOOM.WAD');
-$wad->savePicture('FLOOR0_1', 'E:\Doom\IWADs');
+//$wad->savePicture('FLOOR0_1', 'E:\Doom\IWADs');
