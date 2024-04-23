@@ -20,16 +20,13 @@
   - ✔️ Palettes
   - ✔️ Colormaps
   - ✔️ Flats
-    - ✔️ PNG format
   - ✔️ Sprites
-    - ✔️ PNG format
   - ✔️ Patches
-    - ✔️ PNG format
   - ✔️ Misc graphics
-    - ✔️ PNG format
   - ❌ Demos
   - ❌ ENDOOM
   - ✔️ PNAMES
+  - ✔️ TEXTURE1 and TEXTURE2
   - ❌ GENMIDI
   - ❌ DMXGUS
   - ❌ PC Speaker Sound Effects
