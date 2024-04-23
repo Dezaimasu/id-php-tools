@@ -13,6 +13,7 @@ class DoomWadParser {
     public array $directory = [];
     public array $palettes = [];
     public array $colormaps = [];
+    public array $endoom = [];
     public array $patchNames = [];
     public array $textures = [];
     public array $maps = [];
@@ -143,7 +144,7 @@ class DoomWadParser {
             } elseif ($lumpName === 'COLORMAP') {
                 $this->readColormap($lumpIndex);
             } elseif ($lumpName === 'ENDOOM') {
-                continue; // TODO
+                $this->readEndoom($lumpIndex);
             } elseif ($lumpName === 'PNAMES') {
                 $this->readPatchNames($lumpIndex);
             } elseif ($lumpName === 'GENMIDI') {
@@ -157,10 +158,8 @@ class DoomWadParser {
             } elseif (strpos($lumpName, 'D_') === 0) {
                 continue; // TODO
             } elseif (in_array($lumpName, $allStartMarkers, true)) {
-                if ($lumpName[0] !== 'P') {
-                    $this->readDelimitedLumpSequences($lumpIndex);
-                    $currentSequenceEndMarker = $this->markers[$lumpName];
-                }
+                $this->readDelimitedLumpSequences($lumpIndex);
+                $currentSequenceEndMarker = $this->markers[$lumpName];
             } elseif (in_array($lumpName, $this->patchNames, true)) {
                 $this->readPatch($lumpIndex);
             } elseif (preg_match($d1MapName, $lumpName) || preg_match($d2MapName, $lumpName)) {
@@ -270,9 +269,9 @@ class DoomWadParser {
 
     /**
      * @param int $startMarkerIndex
-     * @return int      end marker index
+     * @return int|null      end marker index
      */
-    private function readDelimitedLumpSequences(int $startMarkerIndex): int{
+    private function readDelimitedLumpSequences(int $startMarkerIndex): ?int{
         $categories = [
             'F' => 'flats',
             'S' => 'sprites',
@@ -281,6 +280,9 @@ class DoomWadParser {
 
         $startMarkerName = $this->getLumpByIndex($startMarkerIndex)['name'];
         $category = $categories[$startMarkerName[0]];
+        if ($category === 'P') {
+        	return null;
+        }
 
         $allStartMarkers = array_keys($this->markers);
         $endMarker = $this->markers[$startMarkerName];
@@ -342,6 +344,39 @@ class DoomWadParser {
         $lump = $this->getLumpByIndex($lumpIndex)['lump'];
         foreach (str_split($lump, 256) as $colormap) {
             $this->colormaps[] = array_map('ord', str_split($colormap));
+        }
+    }
+
+    private function readEndoom(int $lumpIndex): void{
+        $lump = $this->getLumpByIndex($lumpIndex)['lump'];
+        $bytes = array_map('ord', str_split($lump));
+
+
+        for ($colNum = 0; $colNum < 80; $colNum++) {
+            for ($rowNum = 0; $rowNum < 25; $rowNum++) {
+                $charIndex = ($rowNum * 80 + $colNum) * 2;
+                $charColorIndex = $charIndex + 1;
+                $this->endoom[$rowNum][$colNum] = [
+                    'char'  => chr($bytes[$charIndex]), // TODO: special symbols
+                    'color' => chr($bytes[$charColorIndex]), // TODO: read bits
+                ];
+            }
+        }
+
+        $this->printEndoom();
+    }
+
+    /**
+     * @return void
+     */
+    private function printEndoom(): void{
+        foreach ($this->endoom as $row) {
+            $str = '';
+            foreach ($row as $char) {
+                $str .= $char['char'];
+            }
+
+            echo "$str\n\r";
         }
     }
 

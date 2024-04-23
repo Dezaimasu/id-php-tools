@@ -24,7 +24,12 @@
   - ✔️ Patches
   - ✔️ Misc graphics
   - ❌ Demos
-  - ❌ ENDOOM
+  - ENDOOM
+    - ✔️ UTF8 characters 
+    - ❌ Extended ASCII characters
+    - ❌ Color information
+    - ✔️ Output
+    - ❌ Output with colors
   - ✔️ PNAMES
   - ✔️ TEXTURE1 and TEXTURE2
   - ❌ GENMIDI
