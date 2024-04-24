@@ -77,6 +77,23 @@ class DoomWadParser {
     /**
      *
      */
+    public function printEndoom(): void{
+        $bgColors = ['40', '44', '42', '46', '41', '45', '48;5;130', '47'];
+        $fgColors = ['30', '34', '32', '36', '31', '35', '38;5;130', '37', '90', '94', '92', '96', '91', '95', '33', '97'];
+
+        foreach ($this->endoom as $row) {
+            $str = '';
+            foreach ($row as $char) {
+                $blink = $char['blink'] ? ';5' : '';
+                $str .= "\e[{$bgColors[$char['bg_color']]};{$fgColors[$char['fg_color']]}{$blink}m{$char['char']}";
+            }
+            echo "$str\n";
+        }
+    }
+
+    /**
+     *
+     */
     private function readHeader(): void{
         $this->header = [
             'identification' => substr($this->wad, 0, 4),
@@ -347,36 +364,28 @@ class DoomWadParser {
         }
     }
 
+    /**
+     * @param int $lumpIndex
+     */
     private function readEndoom(int $lumpIndex): void{
         $lump = $this->getLumpByIndex($lumpIndex)['lump'];
         $bytes = array_map('ord', str_split($lump));
-
 
         for ($colNum = 0; $colNum < 80; $colNum++) {
             for ($rowNum = 0; $rowNum < 25; $rowNum++) {
                 $charIndex = ($rowNum * 80 + $colNum) * 2;
                 $charColorIndex = $charIndex + 1;
+
+                $char = $bytes[$charIndex] ? chr($bytes[$charIndex]) : ' ';
+                $colorBits = self::byte2bits($bytes[$charColorIndex]);
                 $this->endoom[$rowNum][$colNum] = [
-                    'char'  => chr($bytes[$charIndex]), // TODO: special symbols
-                    'color' => chr($bytes[$charColorIndex]), // TODO: read bits
+                    'raw_char'  => $char,
+                    'char'      => iconv('CP437', 'UTF-8', $char),
+                    'fg_color'  => bindec(substr($colorBits, -4)),
+                    'bg_color'  => bindec(substr($colorBits, -7, 3)),
+                    'blink'     => $colorBits[0] === '1',
                 ];
             }
-        }
-
-        $this->printEndoom();
-    }
-
-    /**
-     * @return void
-     */
-    private function printEndoom(): void{
-        foreach ($this->endoom as $row) {
-            $str = '';
-            foreach ($row as $char) {
-                $str .= $char['char'];
-            }
-
-            echo "$str\n\r";
         }
     }
 
@@ -682,6 +691,14 @@ class DoomWadParser {
      */
     private static function string8(string $str, int $offset): string{
     	return rtrim(substr($str, $offset, 8));
+    }
+
+    /**
+     * @param string $byteStream
+     * @return string
+     */
+    private static function byte2bits(string $byteStream): string{
+        return str_pad(decbin($byteStream), 8, 0, STR_PAD_LEFT);
     }
 
 }
