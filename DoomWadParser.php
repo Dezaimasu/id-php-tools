@@ -11,17 +11,18 @@ class DoomWadParser {
 
     public array $header = [];
     public array $directory = [];
-    public array $palettes = [];
-    public array $colormaps = [];
-    public array $endoom = [];
-    public array $patchNames = [];
-    public array $textures = [];
-    public array $maps = [];
-    public array $graphics = [
-        'flats'     => [],
-        'sprites'   => [],
-        'patches'   => [],
-        'misc'      => [],
+    public array $lumps = [
+        'palettes'      => [],
+        'colormaps'     => [],
+        'ENDOOM'        => [],
+        'patchNames'    => [],
+        'textures'      => [],
+        'maps'          => [],
+        'flats'         => [],
+        'sprites'       => [],
+        'patches'       => [],
+        'graphics'      => [],
+        'unknown'       => [],
     ];
 
     private array $markers = [
@@ -33,6 +34,9 @@ class DoomWadParser {
         'P1_START'  => 'P1_END',
         'P2_START'  => 'P2_END',
         'P3_START'  => 'P3_END',
+        'SS_START'  => 'SS_END',
+        'PP_START'  => 'PP_END',
+        'FF_START'  => 'F_END',
     ];
 
     private array $readLumps = [];
@@ -61,17 +65,13 @@ class DoomWadParser {
      * @param string $folderPath
      */
     public function savePicture(string $lumpName, string $folderPath): void{
-        foreach ($this->graphics as $graphicsCategory) {
-            if (isset($graphicsCategory[$lumpName])) {
-                $pixelData = $graphicsCategory[$lumpName];
+        foreach (['sprites', 'flats', 'patches', 'graphics'] as $graphicsCategory) {
+            if (isset($this->lumps[$graphicsCategory][$lumpName])) {
+                $pixelData = $this->lumps[$graphicsCategory][$lumpName];
+                $this->drawPicture($pixelData, "$folderPath/$lumpName.png");
                 break;
             }
         }
-        if (empty($pixelData)) {
-        	return;
-        }
-
-        $this->drawPicture($pixelData, "$folderPath/$lumpName.png");
     }
 
     /**
@@ -81,7 +81,7 @@ class DoomWadParser {
         $bgColors = ['40', '44', '42', '46', '41', '45', '48;5;130', '47'];
         $fgColors = ['30', '34', '32', '36', '31', '35', '38;5;130', '37', '90', '94', '92', '96', '91', '95', '33', '97'];
 
-        foreach ($this->endoom as $row) {
+        foreach ($this->lumps['ENDOOM'] as $row) {
             $str = '';
             foreach ($row as $char) {
                 $blink = $char['blink'] ? ';5' : '';
@@ -177,7 +177,7 @@ class DoomWadParser {
             } elseif (in_array($lumpName, $allStartMarkers, true)) {
                 $this->readDelimitedLumpSequences($lumpIndex);
                 $currentSequenceEndMarker = $this->markers[$lumpName];
-            } elseif (in_array($lumpName, $this->patchNames, true)) {
+            } elseif (in_array($lumpName, $this->lumps['patchNames'], true)) {
                 $this->readPatch($lumpIndex);
             } elseif (preg_match($d1MapName, $lumpName) || preg_match($d2MapName, $lumpName)) {
                 $this->readMap($lumpIndex);
@@ -186,7 +186,7 @@ class DoomWadParser {
             } elseif (preg_match($texture, $lumpName)) {
                 $this->readTextures($lumpIndex);
             } else {
-                $this->readMiscGraphics($lumpIndex);
+                $this->readOtherLumps($lumpIndex);
             }
         }
     }
@@ -281,7 +281,7 @@ class DoomWadParser {
         }
 
         $mapName = $this->getLumpByIndex($mapLumpIndex)['name'];
-        $this->maps[$mapName] = $map;
+        $this->setLump('maps', $map, $mapName);
     }
 
     /**
@@ -298,7 +298,7 @@ class DoomWadParser {
         $startMarkerName = $this->getLumpByIndex($startMarkerIndex)['name'];
         $category = $categories[$startMarkerName[0]];
         if ($category === 'P') {
-        	return null;
+        	return null; // read from PNAMES instead
         }
 
         $allStartMarkers = array_keys($this->markers);
@@ -318,11 +318,10 @@ class DoomWadParser {
                 continue;
             }
 
-            $this->graphics[$category][$lumpName] = $category === 'flats' ?
+            $picture = $category === 'flats' ?
                 $this->readFlatLump($lump) :
                 $this->readPictureLump($lump);
-
-            $this->readLumps[$lumpName] = true;
+            $this->setLump($category, $picture, $lumpName);
         }
 
         return $lumpIndex;
@@ -333,8 +332,8 @@ class DoomWadParser {
      */
     private function readPatch($lumpIndex): void{
         ['lump' => $lump, 'name' => $lumpName] = $this->getLumpByIndex($lumpIndex);
-        $this->graphics['patches'][$lumpName] = $this->readPictureLump($lump);
-        $this->readLumps[$lumpName] = true;
+        $patch = $this->readPictureLump($lump);
+        $this->setLump('patches', $patch, $lumpName);
     }
 
     /**
@@ -350,7 +349,7 @@ class DoomWadParser {
                 $palette[] = array_values(unpack('C*', $colorStr));
             }
 
-            $this->palettes[] = $palette;
+            $this->setLump('palettes', $palette);
         }
     }
 
@@ -360,7 +359,8 @@ class DoomWadParser {
     private function readColormap(int $lumpIndex): void{
         $lump = $this->getLumpByIndex($lumpIndex)['lump'];
         foreach (str_split($lump, 256) as $colormap) {
-            $this->colormaps[] = array_map('ord', str_split($colormap));
+            $colormapStructure = array_map('ord', str_split($colormap));
+            $this->setLump('colormaps', $colormapStructure);
         }
     }
 
@@ -371,6 +371,7 @@ class DoomWadParser {
         $lump = $this->getLumpByIndex($lumpIndex)['lump'];
         $bytes = array_map('ord', str_split($lump));
 
+        $endoom = [];
         for ($colNum = 0; $colNum < 80; $colNum++) {
             for ($rowNum = 0; $rowNum < 25; $rowNum++) {
                 $charIndex = ($rowNum * 80 + $colNum) * 2;
@@ -378,7 +379,7 @@ class DoomWadParser {
 
                 $char = $bytes[$charIndex] ? chr($bytes[$charIndex]) : ' ';
                 $colorBits = self::byte2bits($bytes[$charColorIndex]);
-                $this->endoom[$rowNum][$colNum] = [
+                $endoom[$rowNum][$colNum] = [
                     'raw_char'  => $char,
                     'char'      => iconv('CP437', 'UTF-8', $char),
                     'fg_color'  => bindec(substr($colorBits, -4)),
@@ -387,6 +388,8 @@ class DoomWadParser {
                 ];
             }
         }
+
+        $this->setLump('ENDOOM', $endoom, 'ENDOOM');
     }
 
     /**
@@ -396,7 +399,8 @@ class DoomWadParser {
         $lump = $this->getLumpByIndex($lumpIndex)['lump'];
         $patchesCount = self::int32_t($lump, 0);
         for ($patchNum = 0; $patchNum < $patchesCount; $patchNum++) {
-            $this->patchNames[] = self::string8($lump, 4 + (8 * $patchNum));
+            $patchName = self::string8($lump, 4 + (8 * $patchNum));
+            $this->setLump('patchNames', $patchName);
         }
     }
 
@@ -424,7 +428,7 @@ class DoomWadParser {
                 'stepdir'   => 'int16_t',
                 'colormap'  => 'int16_t',
             ]);
-            $this->textures[] = $textureData;
+            $this->setLump('textures', $textureData);
         }
     }
 
@@ -512,10 +516,14 @@ class DoomWadParser {
      * @param int $lumpIndex
      * @return void
      */
-    private function readMiscGraphics(int $lumpIndex): void{
+    private function readOtherLumps(int $lumpIndex): void{
         ['lump' => $lump, 'name' => $lumpName] = $this->getLumpByIndex($lumpIndex);
-        $this->graphics['misc'][$lumpName] = $this->readPictureLump($lump);
-        $this->readLumps[$lumpName] = true;
+        $miscPicture = $this->readPictureLump($lump);
+        if ($miscPicture) {
+            $this->setLump('graphics', $miscPicture, $lumpName);
+        } else {
+            $this->setLump('unknown', $lump, $lumpName);
+        }
     }
 
     /**
@@ -555,9 +563,9 @@ class DoomWadParser {
 
     /**
      * @param string $lump
-     * @return array
+     * @return array|null
      */
-    private function readPictureLump(string $lump): array{
+    private function readPictureLump(string $lump): ?array{
         $picture = $this->readStructure(substr($lump, 0, 8), [
             'width'         => 'int16_t',
             'height'        => 'int16_t',
@@ -586,6 +594,10 @@ class DoomWadParser {
                     ];
                 } elseif ($byteNum === $postStart + 1) {
                     $pixelsCount = $byte;
+                    if ($pixelsCount === 0) {
+                    	return null; // not a picture lump TODO: more reliable check
+                    }
+
                     $postEnd = $postStart + $pixelsCount + 3;
                 } elseif ($byteNum >= $postStart + 3 && $byteNum < $postEnd) {
                     $picture['posts'][$postId]['pixels'][] = $byte;
@@ -607,7 +619,7 @@ class DoomWadParser {
      * @param string $filepath
      */
     private function drawPicture(array $pixelData, string $filepath): void{
-        $defaultPalette = $this->palettes[0];
+        $defaultPalette = $this->lumps['palettes'][0];
 
         $pixels = [];
         foreach ($pixelData['posts'] as $postData) {
@@ -655,6 +667,24 @@ class DoomWadParser {
             'name' => $lumpInfo['name'],
             'lump' => $lump,
         ];
+    }
+
+    /**
+     * @param string        $category
+     * @param               $parsedLump
+     * @param string|null   $lumpName
+     */
+    private function setLump(string $category, $parsedLump, string $lumpName = null): void{
+        if (!$lumpName) {
+            $this->lumps[$category][] = $parsedLump;
+        } elseif ($lumpName === $category) {
+            $this->lumps[$category] = $parsedLump;
+        } else {
+            $this->lumps[$category][$lumpName] = $parsedLump;
+        }
+        $this->readLumps[$lumpName] = true;
+
+        echo $lumpName ? "$lumpName\n" : "{$category}[]\n";
     }
 
     /**
