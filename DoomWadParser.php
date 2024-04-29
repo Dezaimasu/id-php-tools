@@ -7,8 +7,6 @@ class DoomWadParser {
      * https://www.gamers.org/dhs/helpdocs/dmsp1666.html
      */
 
-    private string $wad;
-
     public array $header = [];
     public array $directory = [];
     public array $lumps = [
@@ -24,6 +22,8 @@ class DoomWadParser {
         'graphics'      => [],
         'unknown'       => [],
     ];
+
+    private string $wad;
 
     private array $markers = [
         'S_START'   => 'S_END',
@@ -126,7 +126,7 @@ class DoomWadParser {
      */
     private function readLumps(): void{
         $d1MapName = '/^E[1-4]M[1-9]$/';
-        $d2MapName = '/^MAP([0-2][1-9]|3[0-2])$/';
+        $d2MapName = '/^MAP(0[1-9]|[1-9]\d)$/';
         $texture = '/^TEXTURE[1-2]$/';
         $demo = '/^DEMO\d$/';
 
@@ -452,8 +452,11 @@ class DoomWadParser {
 
         $entries = [];
         for ($offset = 0, $lumpLen = strlen($lump); $offset < $lumpLen; $offset += $entryLen) {
-            $entry = [];
             $entryStr  = substr($lump, $offset, $entryLen);
+            if (strlen($entryStr) < $lumpLen) {
+                break; // incomplete lindef, ignore
+            }
+            $entry = [];
             $subOffset = 0;
             foreach ($structure as $key => $type) {
                 $entry[$key] = self::$type($entryStr, $subOffset);
@@ -502,6 +505,9 @@ class DoomWadParser {
             $offset = $blockOffset * 2;
             do {
                 $linedef = self::int16_t($lump, $offset);
+                if ($linedef < -1) {
+                	break; // unknown blockmap format, ignore
+                }
                 $blocklist[] = $linedef;
                 $offset += 2;
             } while ($linedef !== -1 && $offset < $lumpLen);
@@ -571,7 +577,10 @@ class DoomWadParser {
             'height'        => 'int16_t',
             'left_offset'   => 'int16_t',
             'top_offset'    => 'int16_t',
-        ])[0];
+        ])[0] ?? null;
+        if (!$picture || $picture['width'] <= 0 || $picture['height'] <= 0) {
+        	return null; // not a picture lump
+        }
 
         $picture['posts'] = [];
         for ($colNum = 0; $colNum < $picture['width']; $colNum++) {
@@ -595,9 +604,8 @@ class DoomWadParser {
                 } elseif ($byteNum === $postStart + 1) {
                     $pixelsCount = $byte;
                     if ($pixelsCount === 0) {
-                    	return null; // not a picture lump TODO: more reliable check
+                        return null; // not a picture lump TODO: more reliable check
                     }
-
                     $postEnd = $postStart + $pixelsCount + 3;
                 } elseif ($byteNum >= $postStart + 3 && $byteNum < $postEnd) {
                     $picture['posts'][$postId]['pixels'][] = $byte;
