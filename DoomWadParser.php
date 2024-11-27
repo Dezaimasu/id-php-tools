@@ -20,10 +20,12 @@ class DoomWadParser {
         'sprites'       => [],
         'patches'       => [],
         'graphics'      => [],
+        'pngs'          => [],
         'unknown'       => [],
     ];
 
     private string $wad;
+    private bool $showProgress;
 
     private array $markers = [
         'S_START'   => 'S_END',
@@ -43,8 +45,10 @@ class DoomWadParser {
 
     /**
      * @param string $filepath
+     * @param bool $showProgress
      */
-    private function __construct(string $filepath){
+    private function __construct(string $filepath, bool $showProgress = false){
+        $this->showProgress = $showProgress;
         $this->wad = file_get_contents($filepath);
 
         $this->readHeader();
@@ -54,10 +58,11 @@ class DoomWadParser {
 
     /**
      * @param string $filepath
+     * @param bool $showProgress
      * @return self
      */
-    public static function open(string $filepath): self{
-        return new self($filepath);
+    public static function open(string $filepath, bool $showProgress = false): self{
+        return new self($filepath, $showProgress);
     }
 
     /**
@@ -65,12 +70,18 @@ class DoomWadParser {
      * @param string $folderPath
      */
     public function savePicture(string $lumpName, string $folderPath): void{
+        $filepath = "$folderPath/$lumpName.png";
+
         foreach (['sprites', 'flats', 'patches', 'graphics'] as $graphicsCategory) {
             if (isset($this->lumps[$graphicsCategory][$lumpName])) {
                 $pixelData = $this->lumps[$graphicsCategory][$lumpName];
-                $this->drawPicture($pixelData, "$folderPath/$lumpName.png");
-                break;
+                $this->drawPicture($pixelData, $filepath);
+                return;
             }
+        }
+
+        if (isset($this->lumps['pngs'][$lumpName])) {
+            file_put_contents($filepath, $this->lumps['pngs'][$lumpName]);
         }
     }
 
@@ -359,7 +370,7 @@ class DoomWadParser {
     private function readColormap(int $lumpIndex): void{
         $lump = $this->getLumpByIndex($lumpIndex)['lump'];
         foreach (str_split($lump, 256) as $colormap) {
-            $colormapStructure = array_map('ord', str_split($colormap));
+            $colormapStructure = self::stream2Bytes($colormap);
             $this->setLump('colormaps', $colormapStructure);
         }
     }
@@ -369,7 +380,7 @@ class DoomWadParser {
      */
     private function readEndoom(int $lumpIndex): void{
         $lump = $this->getLumpByIndex($lumpIndex)['lump'];
-        $bytes = array_map('ord', str_split($lump));
+        $bytes = self::stream2Bytes($lump);
 
         $endoom = [];
         for ($colNum = 0; $colNum < 80; $colNum++) {
@@ -524,11 +535,19 @@ class DoomWadParser {
      */
     private function readOtherLumps(int $lumpIndex): void{
         ['lump' => $lump, 'name' => $lumpName] = $this->getLumpByIndex($lumpIndex);
-        $miscPicture = $this->readPictureLump($lump);
-        if ($miscPicture) {
-            $this->setLump('graphics', $miscPicture, $lumpName);
+
+        $signatureBytes = self::stream2Bytes($lump, 8);
+        $pngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
+        if ($signatureBytes === $pngSignature) {
+            $this->setLump('pngs', $lump, $lumpName);
         } else {
-            $this->setLump('unknown', $lump, $lumpName);
+
+            $miscPicture = $this->readPictureLump($lump);
+            if ($miscPicture) {
+                $this->setLump('graphics', $miscPicture, $lumpName);
+            } else {
+                $this->setLump('unknown', $lump, $lumpName);
+            }
         }
     }
 
@@ -692,7 +711,9 @@ class DoomWadParser {
         }
         $this->readLumps[$lumpName] = true;
 
-        echo $lumpName ? "$lumpName\n" : "{$category}[]\n";
+        if ($this->showProgress) {
+            echo $lumpName ? "$lumpName\n" : "{$category}[]\n";
+        }
     }
 
     /**
@@ -729,6 +750,17 @@ class DoomWadParser {
      */
     private static function string8(string $str, int $offset): string{
     	return rtrim(substr($str, $offset, 8));
+    }
+
+    /**
+     * @param string $lump
+     * @param int|null $bytesCount
+     * @return array
+     */
+    private static function stream2Bytes(string $lump, int $bytesCount = null): array{
+        $bytes = array_map('ord', str_split($lump));
+
+        return array_slice($bytes, 0, $bytesCount);
     }
 
     /**
