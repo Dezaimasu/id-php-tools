@@ -200,6 +200,10 @@ class DoomWadParser {
                 $this->readOtherLumps($lumpIndex);
             }
         }
+
+        if (empty($this->lumps['palettes']) && file_exists('PLAYPAL')) {
+            $this->readPalettes(0, file_get_contents('PLAYPAL'));
+        }
     }
 
     /**
@@ -349,9 +353,10 @@ class DoomWadParser {
 
     /**
      * @param int $lumpIndex
+     * string|null $fallbackPalette
      */
-    private function readPalettes(int $lumpIndex): void{
-        $lump = $this->getLumpByIndex($lumpIndex)['lump'];
+    private function readPalettes(int $lumpIndex, string $fallbackPalette = null): void{
+        $lump = $fallbackPalette ?: $this->getLumpByIndex($lumpIndex)['lump'];
 
         $palettes = str_split($lump, 768);
         foreach ($palettes as $paletteStr) {
@@ -773,5 +778,5 @@ class DoomWadParser {
 
 }
 
-$wad = DoomWadParser::open('E:\Doom\IWADs\DOOM.WAD');
+//$wad = DoomWadParser::open('E:\Doom\IWADs\DOOM.WAD');
 //$wad->savePicture('FLOOR0_1', 'E:\Doom\IWADs');
