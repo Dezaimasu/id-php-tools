@@ -683,6 +683,7 @@ class DoomWadParser {
 //        imagetruecolortopalette($gd, false, 255); // GD ruins the 8-bit palette, using pngquant instead
 
         $tmpFilepath = "$filepath.tmp";
+        @unlink($tmpFilepath);
         imagepng($gd, $tmpFilepath);
         shell_exec("pngquant 256 $tmpFilepath --output $filepath");
     }

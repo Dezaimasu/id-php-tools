@@ -33,3 +33,9 @@
   - ❌ PC Speaker Sound Effects
   - ❌ Soundcard Sound Effects
   - ❌ Music
+  - ✔️ PNG graphics 
+
+---
+
+### [DoomIntermissionConverter](DoomIntermissionConverter.php)
+Converts GZDoom MAPINFO with intermission script to UMAPINFO with "interlevel" lump.
