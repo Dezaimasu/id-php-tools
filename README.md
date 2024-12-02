@@ -33,7 +33,8 @@
   - ❌ PC Speaker Sound Effects
   - ❌ Soundcard Sound Effects
   - ❌ Music
-  - ✔️ PNG graphics 
+- Non-standard lumps
+  - ✔️ PNG graphics
 
 ---
 

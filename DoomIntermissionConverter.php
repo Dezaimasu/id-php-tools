@@ -22,6 +22,7 @@ class DoomIntermissionConverter {
     ];
 
     private array $savedGraphics = [];
+    private array $jsonPieces = [];
 
 
     /**
@@ -92,8 +93,6 @@ class DoomIntermissionConverter {
     }
 
     /**
-     * not trying to read "[secret]next" since it might be inaccurate
-     *
      * @return void
      */
     private function readZmapinfo(): void{
@@ -128,6 +127,7 @@ class DoomIntermissionConverter {
             if (strpos(@$props['exitpic'], '$') === 0) {
                 $data['exitanim'] = ltrim($props['exitpic'], '$');
             }
+            // not trying to read "[secret]next" props since they might be inaccurate
 
             $this->data['mapinfo'][$i] = $data;
         }
@@ -297,12 +297,12 @@ class DoomIntermissionConverter {
                 $duration = round($anim['speed'] / 35, 2);
                 $interlevelFrames = [];
                 foreach ($anim['patches'] as $patch) {
-                    $interlevelFrames[] = [
+                    $interlevelFrames[] = $this->addJsonPiece([
                         'image'         => $patch,
                         'type'          => 2,
                         'duration'      => $duration,
                         'maxduration'   => 0,
-                    ];
+                    ]);
                 }
 
                 $interlevelAnims[] = [
@@ -336,16 +336,16 @@ class DoomIntermissionConverter {
                 $interlevelSplats[] = [
                     'x' => $x,
                     'y' => $y,
-                    'frames' => [[
+                    'frames' => $this->addJsonPiece([[
                         'image'         => $data['splat'],
                         'type'          => 1,
                         'duration'      => 0,
                         'maxduration'   => 0,
-                    ]],
-                    'conditions' => [[
+                    ]]),
+                    'conditions' => $this->addJsonPiece([[
                         'condition' => 3,
                         'param'     => $mapNumber,
-                    ]],
+                    ]]),
                 ];
 
                 // implied pointers width is 60px, same as Doom pointers
@@ -355,35 +355,73 @@ class DoomIntermissionConverter {
                 $interlevelArrows[] = [
                     'x' => $x,
                     'y' => $y,
-                    'frames' => [[
+                    'frames' => [$this->addJsonPiece([
                         'image'         => $arrow,
                         'type'          => 2,
                         'duration'      => 0.667,
                         'maxduration'   => 0,
-                    ], [
+                    ]), $this->addJsonPiece([
                         'image'         => 'TNT1A0',
                         'type'          => 2,
                         'duration'      => 0.333,
                         'maxduration'   => 0,
-                    ]],
-                    'conditions' => [[
+                    ])],
+                    'conditions' => $this->addJsonPiece([[
                         'condition' => 2,
                         'param'     => $mapNumber,
-                    ]],
+                    ]]),
                 ];
             }
 
             $interlevel['data']['layers'][] = [
                 'anims'      => $interlevelSplats,
-                'conditions' => [['condition' => 7, 'param' => 0]],
+                'conditions' => $this->addJsonPiece([['condition' => 7, 'param' => 0]]),
             ];
             $interlevel['data']['layers'][] = [
                 'anims'      => $interlevelArrows,
-                'conditions' => [['condition' => 7, 'param' => 0]],
+                'conditions' => $this->addJsonPiece([['condition' => 7, 'param' => 0]]),
             ];
         }
 
-        file_put_contents("$this->outputDir/{$data['script_name']}.json", json_encode($interlevel, JSON_PRETTY_PRINT)); // TODO: custom formatting
+        $this->saveJson($interlevel, $data['script_name']);
+    }
+
+    /**
+     * @param array $interlevel
+     * @param string $scriptName
+     * @return void
+     */
+    private function saveJson(array $interlevel, string $scriptName): void{
+        $placeholders = array_map(
+            static function($a){
+                return "\"%%%$a\"";
+            },
+            array_keys($this->jsonPieces)
+        );
+        $values = array_map(
+            static function($a){
+                return str_replace([',', ':'], [', ', ': '], json_encode($a));
+            },
+            $this->jsonPieces
+        );
+
+        $json = str_replace([...$placeholders, '    '], [...$values, '  '], json_encode($interlevel, JSON_PRETTY_PRINT));
+
+        file_put_contents("$this->outputDir/$scriptName.json", $json);
+    }
+
+    /**
+     * Each $piece (frame/condition/whatever) will take only 1 string in resulting json instead of ~6.
+     *
+     * Keys/values inside $piece array should NOT have commas or colons.
+     *
+     * @param array $piece
+     * @return string
+     */
+    private function addJsonPiece(array $piece): string{
+        $this->jsonPieces[] = $piece;
+
+        return '%%%' . array_key_last($this->jsonPieces);
     }
 
 }
