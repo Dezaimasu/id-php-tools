@@ -11,6 +11,8 @@ class DoomIntermissionConverter {
      */
 
     private string $wadPath;
+    private array $wadInfo;
+
     private DoomWadParser $wad;
 
     private string $outputDir;
@@ -28,11 +30,13 @@ class DoomIntermissionConverter {
     /**
      * @param string $wadPath
      * @param string $outputDir
+     * @param array $wadInfo
      * @param bool $saveGraphics
      * @param bool $debug
      */
-    private function __construct(string $wadPath, string $outputDir,bool $saveGraphics, bool $debug){
+    private function __construct(string $wadPath, string $outputDir, array $wadInfo, bool $saveGraphics, bool $debug){
         $this->wadPath = $wadPath;
+        $this->wadInfo = $wadInfo;
 
         @mkdir($this->outputDir = $outputDir);
         if ($debug) {
@@ -51,12 +55,13 @@ class DoomIntermissionConverter {
     /**
      * @param string $wadPath
      * @param string $outputDir
+     * @param array $wadInfo ['title' => 'WAD name', 'music' => 'Intermission music lump', 'secrets' => [map_num => secret_map_num, ..], 'exits' => [map_num => next_map_num, ..]]
      * @param bool $saveGraphics
      * @param bool $debug       If true, lumps from WAD file will be saved on disk to make subsequent runs faster. Otherwise WAD will be parsed on each run.
      * @return self
      */
-    public static function convert(string $wadPath, string $outputDir, bool $saveGraphics = true, bool $debug = false): self{
-        return new self($wadPath, $outputDir, $saveGraphics, $debug);
+    public static function convert(string $wadPath, string $outputDir, array $wadInfo, bool $saveGraphics = true, bool $debug = false): self{
+        return new self($wadPath, $outputDir, $wadInfo, $saveGraphics, $debug);
     }
 
     /**
@@ -132,6 +137,10 @@ class DoomIntermissionConverter {
 
             $this->data['mapinfo'][$i] = $data;
         }
+
+        usort($this->data['mapinfo'], static function($a, $b){
+            return $a['map'] <=> $b['map'];
+        });
     }
 
     /**
@@ -243,12 +252,19 @@ class DoomIntermissionConverter {
     private function buildUmapinfo(): void{
         $umapinfo = '';
 
-        usort($this->data['mapinfo'], static function($a, $b){
-            return $a['map'] <=> $b['map'];
-        });
-        foreach ($this->data['mapinfo'] as $mapinfo) {
+        foreach ($this->data['mapinfo'] as $mapNum => $mapinfo) {
             $umapinfo .= "MAP {$mapinfo['map']}\n";
             $umapinfo .= "{\n";
+
+            if (isset($this->wadInfo['exits'][$mapNum])) {
+                $nextMap = $this->data['mapinfo'][$this->wadInfo['exits'][$mapNum]]['map'];
+                $umapinfo .= "  next = \"{$nextMap}\"\n";
+            }
+            if (isset($this->wadInfo['secrets'][$mapNum])) {
+                $nextSecretMap = $this->data['mapinfo'][$this->wadInfo['secrets'][$mapNum]]['map'];
+                $umapinfo .= "  nextsecret = \"{$nextSecretMap}\"\n";
+            }
+
             $umapinfo .= "  levelpic = \"{$mapinfo['levelpic']}\"\n";
             $umapinfo .= "  enteranim = \"{$mapinfo['enteranim']}\"\n";
             $umapinfo .= "  exitanim = \"{$mapinfo['exitanim']}\"\n";
@@ -279,10 +295,10 @@ class DoomIntermissionConverter {
                 'author'        => 'Deil',
                 'application'   => 'id-php-tools',
                 'timestamp'     => date('c'),
-                'comment'       => 'Intermission screen for TODO (ported from GZDoom mod)',
+                'comment'       => "Intermission screen for {$this->wadInfo['title']} (ported from GZDoom mod)",
             ],
             'data' => [
-                'music'             => 'TODO',
+                'music'             => $this->wadInfo['music'],
                 'backgroundimage'   => $data['bg'],
                 'layers'            => [],
             ],
@@ -321,7 +337,7 @@ class DoomIntermissionConverter {
         }
 
         if (!empty($data['spots'])) {
-            $mapNumbers = array_combine(
+            $mapNums = array_combine(
                 array_column($this->data['mapinfo'], 'map'),
                 array_keys($this->data['mapinfo']),
             );
@@ -332,7 +348,7 @@ class DoomIntermissionConverter {
                 $x = (int)$coords['x'];
                 $y = (int)$coords['y'];
 
-                $mapNumber = $mapNumbers[$map];
+                $mapNum = $mapNums[$map];
 
                 $interlevelSplats[] = [
                     'x' => $x,
@@ -345,7 +361,7 @@ class DoomIntermissionConverter {
                     ]]),
                     'conditions' => $this->addJsonPiece([[
                         'condition' => 3,
-                        'param'     => $mapNumber,
+                        'param'     => $mapNum,
                     ]]),
                 ];
 
@@ -369,7 +385,7 @@ class DoomIntermissionConverter {
                     ])],
                     'conditions' => $this->addJsonPiece([[
                         'condition' => 2,
-                        'param'     => $mapNumber,
+                        'param'     => $mapNum,
                     ]]),
                 ];
             }
@@ -427,4 +443,9 @@ class DoomIntermissionConverter {
 
 }
 
-DoomIntermissionConverter::convert('D:\Code\_wads\INTMAPEV_GZ.wad', 'D:\Code\_wads\INTMAPEV_GZ');
+DoomIntermissionConverter::convert('D:\Code\_wads\INTMAPEV_GZ.wad', 'D:\Code\_wads\INTMAPEV_GZ', [
+    'title'     => 'TNT: Evilution',
+    'music'     => 'D_DM2INT',
+    'secrets'   => [15 => 31, 31 => 32],
+    'exits'     => [31 => 16, 32 => 16],
+]);
