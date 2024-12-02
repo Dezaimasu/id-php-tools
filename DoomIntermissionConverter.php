@@ -27,17 +27,17 @@ class DoomIntermissionConverter {
 
     /**
      * @param string $wadPath
-     * @param string|null $tmpDir   If not empty, lumps from WAD file will be stored here, subsequent runs will be faster. Otherwise WAD will be parsed on each run.
+     * @param string $outputDir
      * @param bool $saveGraphics
+     * @param bool $debug
      */
-    private function __construct(string $wadPath, ?string $tmpDir = null, bool $saveGraphics = true){
+    private function __construct(string $wadPath, string $outputDir,bool $saveGraphics, bool $debug){
         $this->wadPath = $wadPath;
-        if ($tmpDir) {
-            $this->tmpDir = $tmpDir;
-        }
 
-        $this->outputDir = ($this->tmpDir ?? dirname($wadPath)) . '/' . pathinfo($wadPath)['filename'];
-        @mkdir($this->outputDir);
+        @mkdir($this->outputDir = $outputDir);
+        if ($debug) {
+            @mkdir($this->tmpDir = "$outputDir/_tmp");
+        }
 
         $this->readZmapinfo();
         $this->readIntermissionScripts();
@@ -50,12 +50,13 @@ class DoomIntermissionConverter {
 
     /**
      * @param string $wadPath
-     * @param string|null $tmpDir
+     * @param string $outputDir
      * @param bool $saveGraphics
+     * @param bool $debug       If true, lumps from WAD file will be saved on disk to make subsequent runs faster. Otherwise WAD will be parsed on each run.
      * @return self
      */
-    public static function convert(string $wadPath, string $tmpDir = null, bool $saveGraphics = true): self{
-        return new self($wadPath, $tmpDir, $saveGraphics);
+    public static function convert(string $wadPath, string $outputDir, bool $saveGraphics = true, bool $debug = false): self{
+        return new self($wadPath, $outputDir, $saveGraphics, $debug);
     }
 
     /**
@@ -426,4 +427,4 @@ class DoomIntermissionConverter {
 
 }
 
-DoomIntermissionConverter::convert('D:\Code\_tmp\INTMAPEV_GZ.wad', 'D:\Code\_tmp', false);
+DoomIntermissionConverter::convert('D:\Code\_wads\INTMAPEV_GZ.wad', 'D:\Code\_wads\INTMAPEV_GZ');
