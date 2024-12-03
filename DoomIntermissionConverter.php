@@ -26,6 +26,7 @@ class DoomIntermissionConverter {
     private array $savedGraphics = [];
     private array $jsonPieces = [];
 
+    private const EMPTY_PATCH = 'TNT1A0';
 
     /**
      * @param string $wadPath
@@ -169,17 +170,18 @@ class DoomIntermissionConverter {
      * @return void
      */
     private function readIntermissionScript(string $scriptName): void{
-        $script = $this->getLump($scriptName);
-
         $data = [
-            'script_name'=> $scriptName,
-            'bg'         => null,
-            'splat'      => null,
-            'pointers'   => [],
-            'spots'      => [],
-            'animations' => [],
+            'script_name'   => $scriptName,
+            'bg'            => null,
+            'splat'         => null,
+            'pointers'      => [],
+            'spots'         => [],
+            'animations'    => [],
         ];
+
+        $script = $this->getLump($scriptName);
         $strings = explode("\r\n", $script);
+
         for ($i = 0, $len = count($strings); $i < $len; $i++) {
             $str = $strings[$i];
 
@@ -200,11 +202,16 @@ class DoomIntermissionConverter {
                     $i++;
                 }
 
-            } elseif (preg_match('/^ANIMATION (?<x>\d{1,3}) (?<y>\d{1,3}) (?<speed>\d{1,2})( ONCE)?$/i', $str, $matches) && $strings[$i+1] === '{') {
-                $animation['x'] = $matches['x'];
-                $animation['y'] = $matches['y'];
-                $animation['speed'] = $matches['speed'];
-                $animation['patches'] = [];
+            } elseif (preg_match('/^(((IFVISITED (?<visited>\w{1,8}))|(IFENTERING (?<entering>\w{1,8}))) )?ANIMATION (?<x>\d{1,3}) (?<y>\d{1,3}) (?<speed>\d{1,2})(?<once> ONCE)?$/i', $str, $matches) && $strings[$i+1] === '{') {
+                $animation = [
+                    'visited'   => $matches['visited'] ?: null,
+                    'entering'  => $matches['entering'] ?: null,
+                    'once'      => !empty($matches['once']),
+                    'x'         => $matches['x'],
+                    'y'         => $matches['y'],
+                    'speed'     => $matches['speed'],
+                    'patches'   => [],
+                ];
 
                 $i += 2;
                 while (($str = $strings[$i]) !== '}') {
@@ -213,6 +220,17 @@ class DoomIntermissionConverter {
                 }
 
                 $data['animations'][] = $animation;
+
+            } elseif (preg_match('/^(((IFVISITED (?<visited>\w{1,8}))|(IFENTERING (?<entering>\w{1,8}))) )?PIC (?<x>\d{1,3}) (?<y>\d{1,3}) (?<patch>\w{1,8})$/i', $str, $matches)) {
+                $data['animations'][] = [
+                    'visited'   => $matches['visited'] ?: null,
+                    'entering'  => $matches['entering'] ?: null,
+                    'once'      => false,
+                    'x'         => $matches['x'],
+                    'y'         => $matches['y'],
+                    'speed'     => null,
+                    'patches'   => [$matches['patch']],
+                ];
             }
         }
 
@@ -293,6 +311,11 @@ class DoomIntermissionConverter {
      * @return void
      */
     private function buildInterlevelLump(array $data): void{
+        $mapNums = array_combine(
+            array_column($this->data['mapinfo'], 'map'),
+            array_keys($this->data['mapinfo']),
+        );
+
         $interlevel = [
             'type'      => 'interlevel',
             'version'   => '0.1.0',
@@ -315,9 +338,13 @@ class DoomIntermissionConverter {
 
         if (!empty($data['animations'])) {
             $interlevelAnims = [];
+
             foreach ($data['animations'] as $anim) {
                 $duration = round($anim['speed'] / 35, 2);
                 $interlevelFrames = [];
+
+                $lastPatch = array_pop($anim['patches']);
+
                 foreach ($anim['patches'] as $patch) {
                     $interlevelFrames[] = $this->addJsonPiece([
                         'image'         => $patch,
@@ -327,11 +354,40 @@ class DoomIntermissionConverter {
                     ]);
                 }
 
+                if ($anim['once'] || $anim['speed'] === null) {
+                    $type = 1;
+                    $duration = 0;
+                } else {
+                    $type = 2;
+                }
+
+                $interlevelFrames[] = $this->addJsonPiece([
+                    'image'         => $lastPatch,
+                    'type'          => $type,
+                    'duration'      => $duration,
+                    'maxduration'   => 0,
+                ]);
+
+                $conditions = null;
+                if ($anim['visited']) {
+                    $mapNum = $mapNums[$anim['visited']];
+                    $conditions = $this->addJsonPiece([[
+                        'condition' => 3,
+                        'param'     => $mapNum,
+                    ]]);
+                } elseif ($anim['entering']) {
+                	$nextMapNum = $mapNums[$anim['entering']];
+                    $conditions = $this->addJsonPiece([[
+                        'condition' => 2,
+                        'param'     => $nextMapNum,
+                    ]]);
+                }
+
                 $interlevelAnims[] = [
                     'x'          => (int)$anim['x'],
                     'y'          => (int)$anim['y'],
                     'frames'     => $interlevelFrames,
-                    'conditions' => null,
+                    'conditions' => $conditions,
                 ];
             }
 
@@ -342,13 +398,9 @@ class DoomIntermissionConverter {
         }
 
         if (!empty($data['spots'])) {
-            $mapNums = array_combine(
-                array_column($this->data['mapinfo'], 'map'),
-                array_keys($this->data['mapinfo']),
-            );
-
         	$interlevelSplats = [];
         	$interlevelArrows = [];
+
             foreach ($data['spots'] as $map => $coords) {
                 $x = (int)$coords['x'];
                 $y = (int)$coords['y'];
@@ -383,7 +435,7 @@ class DoomIntermissionConverter {
                         'duration'      => 0.667,
                         'maxduration'   => 0,
                     ]), $this->addJsonPiece([
-                        'image'         => 'TNT1A0',
+                        'image'         => self::EMPTY_PATCH,
                         'type'          => 2,
                         'duration'      => 0.333,
                         'maxduration'   => 0,
