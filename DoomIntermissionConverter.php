@@ -141,6 +141,11 @@ class DoomIntermissionConverter {
         usort($this->data['mapinfo'], static function($a, $b){
             return $a['map'] <=> $b['map'];
         });
+
+        $this->data['mapinfo'] = array_combine(
+            range(1, count($this->data['mapinfo'])),
+            array_values($this->data['mapinfo'])
+        );
     }
 
     /**
