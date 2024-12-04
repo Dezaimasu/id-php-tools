@@ -22,6 +22,10 @@ class DoomIntermissionConverter {
         'mapinfo'       => [],
         'intermissions' => [],
     ];
+    private array $id24Data = [
+        'umapinfo'      => '',
+        'interlevels'   => [],
+    ];
 
     private array $savedGraphics = [];
     private array $jsonPieces = [];
@@ -46,11 +50,15 @@ class DoomIntermissionConverter {
 
         $this->readZmapinfo();
         $this->readIntermissionScripts();
+
         if ($saveGraphics) {
             $this->saveGraphics();
         }
+
         $this->buildUmapinfo();
         $this->buildInterlevelLumps();
+
+        $this->saveLumps();
     }
 
     /**
@@ -106,7 +114,7 @@ class DoomIntermissionConverter {
         $zMapinfo = $this->getLump('MAPINFO'); // TODO: might also be ZMAPINFO lump
 
         $mapRegex = /** @lang PhpRegExp*/ "/
-          [\n\r]MAP\s(?<map>\w{1,8})[^{]*
+          [\n\r]MAP[ ](?<map>\w{1,8})[^{]*
           [\n\r]+{
           (?<props>[^}]+)
           [\n\r]+}
@@ -201,36 +209,62 @@ class DoomIntermissionConverter {
                     $data['spots'][$map] = compact('x', 'y');
                     $i++;
                 }
+            } else {
+                // IFNOT commands can't be ported to id24 interlevel
+                $regex = /** @lang PhpRegExp*/ '/
+                  ^(
+                    (IFENTERING[ ](?<entering>\w{1,8})[ ])
+                    |
+                    (IFLEAVING[ ](?<leaving>\w{1,8})[ ])
+                    |
+                    (IFVISITED[ ](?<visited>\w{1,8})[ ])
+                    |
+                    (IFTRAVELLING[ ](?<from>\w{1,8})[ ](?<to>\w{1,8})[ ])
+                  )?
+                  (
+                    (PIC[ ](?<pic_x>\d{1,3})[ ](?<pic_y>\d{1,3})[ ](?<patch>\w{1,8}))
+                    |
+                    (ANIMATION[ ](?<anim_x>\d{1,3})[ ](?<anim_y>\d{1,3})[ ](?<speed>\d{1,2})(?<once>[ ]ONCE)?)
+                  )$
+                /ix';
 
-            } elseif (preg_match('/^(((IFVISITED (?<visited>\w{1,8}))|(IFENTERING (?<entering>\w{1,8}))) )?ANIMATION (?<x>\d{1,3}) (?<y>\d{1,3}) (?<speed>\d{1,2})(?<once> ONCE)?$/i', $str, $matches) && $strings[$i+1] === '{') {
-                $animation = [
-                    'visited'   => $matches['visited'] ?: null,
-                    'entering'  => $matches['entering'] ?: null,
-                    'once'      => !empty($matches['once']),
-                    'x'         => $matches['x'],
-                    'y'         => $matches['y'],
-                    'speed'     => $matches['speed'],
-                    'patches'   => [],
-                ];
-
-                $i += 2;
-                while (($str = $strings[$i]) !== '}') {
-                    $animation['patches'][] = strtoupper($str);
-                    $i++;
+                if (!preg_match($regex, $str, $matches)) {
+                    continue;
                 }
 
-                $data['animations'][] = $animation;
+                $visited = $matches['visited'] ?: $matches['leaving'] ?: $matches['from'] ?: null;
+                $entering = $matches['entering'] ?: $matches['to'] ?: null;
 
-            } elseif (preg_match('/^(((IFVISITED (?<visited>\w{1,8}))|(IFENTERING (?<entering>\w{1,8}))) )?PIC (?<x>\d{1,3}) (?<y>\d{1,3}) (?<patch>\w{1,8})$/i', $str, $matches)) {
-                $data['animations'][] = [
-                    'visited'   => $matches['visited'] ?: null,
-                    'entering'  => $matches['entering'] ?: null,
-                    'once'      => false,
-                    'x'         => $matches['x'],
-                    'y'         => $matches['y'],
-                    'speed'     => null,
-                    'patches'   => [$matches['patch']],
-                ];
+                if ($matches['pic_x'] === '') { // ANIMATION
+                    $animation = [
+                        'visited'   => $visited,
+                        'entering'  => $entering,
+                        'once'      => !empty($matches['once']),
+                        'x'         => $matches['anim_x'],
+                        'y'         => $matches['anim_y'],
+                        'speed'     => $matches['speed'],
+                        'patches'   => [],
+                    ];
+
+                    $i += 2;
+                    while (($str = $strings[$i]) !== '}') {
+                        $animation['patches'][] = strtoupper($str);
+                        $i++;
+                    }
+
+                    $data['animations'][] = $animation;
+
+                } else { // PIC
+                    $data['animations'][] = [
+                        'visited'   => $visited,
+                        'entering'  => $entering,
+                        'once'      => false,
+                        'x'         => $matches['pic_x'],
+                        'y'         => $matches['pic_y'],
+                        'speed'     => null,
+                        'patches'   => [$matches['patch']],
+                    ];
+                }
             }
         }
 
@@ -294,7 +328,7 @@ class DoomIntermissionConverter {
             $umapinfo .= "}\n\n";
         }
 
-        file_put_contents("$this->outputDir/UMAPINFO.txt", $umapinfo);
+        $this->id24Data['umapinfo'] = $umapinfo;
     }
 
     /**
@@ -368,26 +402,27 @@ class DoomIntermissionConverter {
                     'maxduration'   => 0,
                 ]);
 
-                $conditions = null;
+                $conditions = [];
                 if ($anim['visited']) {
                     $mapNum = $mapNums[$anim['visited']];
-                    $conditions = $this->addJsonPiece([[
+                    $conditions[] = [
                         'condition' => 3,
                         'param'     => $mapNum,
-                    ]]);
-                } elseif ($anim['entering']) {
+                    ];
+                }
+                if ($anim['entering']) {
                 	$nextMapNum = $mapNums[$anim['entering']];
-                    $conditions = $this->addJsonPiece([[
+                    $conditions[] = [
                         'condition' => 2,
                         'param'     => $nextMapNum,
-                    ]]);
+                    ];
                 }
 
                 $interlevelAnims[] = [
                     'x'          => (int)$anim['x'],
                     'y'          => (int)$anim['y'],
                     'frames'     => $interlevelFrames,
-                    'conditions' => $conditions,
+                    'conditions' => $conditions ? $this->addJsonPiece($conditions) : null,
                 ];
             }
 
@@ -457,7 +492,18 @@ class DoomIntermissionConverter {
             ];
         }
 
-        $this->saveJson($interlevel, $data['script_name']);
+        $this->id24Data['interlevels'][$data['script_name']] = $interlevel;
+    }
+
+    /**
+     * @return void
+     */
+    private function saveLumps(): void{
+        file_put_contents("$this->outputDir/UMAPINFO.txt", $this->id24Data['umapinfo']);
+
+        foreach ($this->id24Data['interlevels'] as $scriptName => $interlevel) {
+            $this->saveJson($interlevel, $scriptName);
+        }
     }
 
     /**
