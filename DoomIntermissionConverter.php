@@ -274,9 +274,9 @@ class DoomIntermissionConverter {
     private function saveGraphics(): void{
         foreach ($this->data['intermissions'] as $intermission) {
             $this->savePng($intermission['bg']);
-            $this->savePng($intermission['splat']);
-            $this->savePng($intermission['pointers'][0]);
-            $this->savePng($intermission['pointers'][1]);
+            $this->savePng($intermission['splat'], true);
+            $this->savePng($intermission['pointers'][0], true);
+            $this->savePng($intermission['pointers'][1], true);
             foreach ($intermission['animations'] as $animation) {
                 foreach (array_unique($animation['patches']) as $patch) {
                     $this->savePng($patch);
@@ -287,17 +287,21 @@ class DoomIntermissionConverter {
 
     /**
      * @param string|null $lumpName
+     * @param bool $potentiallyExternal     lumps such as WISPLAT might not be in $this->wad if they exist in IWAD
      * @return void
      */
-    private function savePng(?string $lumpName): void{
+    private function savePng(?string $lumpName, bool $potentiallyExternal = false): void{
         if (
-            $lumpName &&
-            !in_array($lumpName, $this->savedGraphics, true) &&
-            !file_exists("$this->outputDir/$lumpName.png")
+            !$lumpName ||
+            in_array($lumpName, $this->savedGraphics, true) ||
+            file_exists("$this->outputDir/$lumpName.png") ||
+            ($potentiallyExternal && empty($this->wad))
         ) {
-            $this->wad->savePicture($lumpName, $this->outputDir);
-            $this->savedGraphics[] = $lumpName;
+        	return;
         }
+
+        $this->wad->savePicture($lumpName, $this->outputDir);
+        $this->savedGraphics[] = $lumpName;
     }
 
     /**
