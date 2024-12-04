@@ -25,6 +25,7 @@ class DoomIntermissionConverter {
     private array $id24Data = [
         'umapinfo'      => '',
         'interlevels'   => [],
+        'credits'       => '',
     ];
 
     private array $savedGraphics = [];
@@ -56,7 +57,8 @@ class DoomIntermissionConverter {
         }
 
         $this->buildUmapinfo();
-        $this->buildInterlevelLumps();
+        $this->buildInterlevels();
+        $this->buildCredits();
 
         $this->saveLumps();
     }
@@ -64,7 +66,7 @@ class DoomIntermissionConverter {
     /**
      * @param string $wadPath
      * @param string $outputDir
-     * @param array $wadInfo ['title' => 'WAD name', 'music' => 'Intermission music lump', 'secrets' => [map_num => secret_map_num, ..], 'exits' => [map_num => next_map_num, ..]]
+     * @param array $wadInfo    ['title' => 'WAD name', 'author' => 'original mod author', 'music' => 'Intermission music lump', 'secrets' => [map_num => secret_map_num, ..], 'exits' => [map_num => next_map_num, ..]]
      * @param bool $saveGraphics
      * @param bool $debug       If true, lumps from WAD file will be saved on disk to make subsequent runs faster. Otherwise WAD will be parsed on each run.
      * @return self
@@ -334,9 +336,9 @@ class DoomIntermissionConverter {
     /**
      * @return void
      */
-    private function buildInterlevelLumps(): void{
+    private function buildInterlevels(): void{
         foreach ($this->data['intermissions'] as $data) {
-            $this->buildInterlevelLump($data);
+            $this->buildInterlevel($data);
         }
     }
 
@@ -344,7 +346,7 @@ class DoomIntermissionConverter {
      * @param array $data
      * @return void
      */
-    private function buildInterlevelLump(array $data): void{
+    private function buildInterlevel(array $data): void{
         $mapNums = array_combine(
             array_column($this->data['mapinfo'], 'map'),
             array_keys($this->data['mapinfo']),
@@ -357,7 +359,7 @@ class DoomIntermissionConverter {
                 'author'        => 'Deil',
                 'application'   => 'id-php-tools',
                 'timestamp'     => date('c'),
-                'comment'       => "Intermission screen for {$this->wadInfo['title']} (ported from GZDoom mod)",
+                'comment'       => "Intermission screen for {$this->wadInfo['title']}. Ported from GZDoom mod made by {$this->wadInfo['author']}.",
             ],
             'data' => [
                 'music'             => $this->wadInfo['music'],
@@ -498,8 +500,16 @@ class DoomIntermissionConverter {
     /**
      * @return void
      */
+    private function buildCredits(): void{
+        $this->id24Data['credits'] = "{$this->wadInfo['author']} - original GZDoom intermission screen mod, including all graphics and animations.";
+    }
+
+    /**
+     * @return void
+     */
     private function saveLumps(): void{
         file_put_contents("$this->outputDir/UMAPINFO.txt", $this->id24Data['umapinfo']);
+        file_put_contents("$this->outputDir/CREDITS.txt", $this->id24Data['credits']);
 
         foreach ($this->id24Data['interlevels'] as $scriptName => $interlevel) {
             $this->saveJson($interlevel, $scriptName);
@@ -548,7 +558,8 @@ class DoomIntermissionConverter {
 
 DoomIntermissionConverter::convert('D:\Code\_wads\INTMAPEV_GZ.wad', 'D:\Code\_wads\INTMAPEV_GZ', [
     'title'     => 'TNT: Evilution',
+    'author'    => 'oliacym',
     'music'     => 'D_DM2INT',
     'secrets'   => [15 => 31, 31 => 32],
     'exits'     => [31 => 16, 32 => 16],
-]);
+], true, true);
