@@ -234,19 +234,20 @@ class DoomIntermissionConverter {
                     continue;
                 }
 
-                $visited = $matches['visited'] ?: $matches['leaving'] ?: $matches['from'] ?: null;
-                $entering = $matches['entering'] ?: $matches['to'] ?: null;
+                $animation = [
+                    'entering'  => $matches['entering'] ?: $matches['to'], // skipping 'from' because it's impossible to know next map number on tally screen
+                    'leaving'   => $matches['leaving'],
+                    'visited'   => $matches['visited'],
+                    'once'      => false,
+                    'speed'     => null,
+                    'patches'   => [],
+                ];
 
                 if ($matches['pic_x'] === '') { // ANIMATION
-                    $animation = [
-                        'visited'   => $visited,
-                        'entering'  => $entering,
-                        'once'      => !empty($matches['once']),
-                        'x'         => $matches['anim_x'],
-                        'y'         => $matches['anim_y'],
-                        'speed'     => $matches['speed'],
-                        'patches'   => [],
-                    ];
+                    $animation['x'] = $matches['anim_x'];
+                    $animation['y'] = $matches['anim_y'];
+                    $animation['once'] = !empty($matches['once']);
+                    $animation['speed'] = $matches['speed'];
 
                     $i += 2;
                     while (($str = $strings[$i]) !== '}') {
@@ -254,19 +255,13 @@ class DoomIntermissionConverter {
                         $i++;
                     }
 
-                    $data['animations'][] = $animation;
-
                 } else { // PIC
-                    $data['animations'][] = [
-                        'visited'   => $visited,
-                        'entering'  => $entering,
-                        'once'      => false,
-                        'x'         => $matches['pic_x'],
-                        'y'         => $matches['pic_y'],
-                        'speed'     => null,
-                        'patches'   => [$matches['patch']],
-                    ];
+                    $animation['x'] = $matches['pic_x'];
+                    $animation['y'] = $matches['pic_y'];
+                    $animation['patches'][] = $matches['patch'];
                 }
+
+                $data['animations'][] = $animation;
             }
         }
 
@@ -352,6 +347,9 @@ class DoomIntermissionConverter {
             array_keys($this->data['mapinfo']),
         );
 
+        $conditionLeaving   = ['condition' => 6, 'param' => 0];
+        $conditionEntering  = ['condition' => 7, 'param' => 0];
+
         $interlevel = [
             'type'      => 'interlevel',
             'version'   => '0.1.0',
@@ -404,20 +402,16 @@ class DoomIntermissionConverter {
                     'maxduration'   => 0,
                 ]);
 
-                $conditions = [];
-                if ($anim['visited']) {
-                    $mapNum = $mapNums[$anim['visited']];
-                    $conditions[] = [
-                        'condition' => 3,
-                        'param'     => $mapNum,
-                    ];
-                }
+                $conditions = null;
                 if ($anim['entering']) {
-                	$nextMapNum = $mapNums[$anim['entering']];
-                    $conditions[] = [
-                        'condition' => 2,
-                        'param'     => $nextMapNum,
-                    ];
+                    $nextMapNum = $mapNums[$anim['entering']];
+                    $conditions = [['condition' => 2, 'param' => $nextMapNum], $conditionEntering];
+                } elseif ($anim['leaving']) {
+                    $mapNum = $mapNums[$anim['leaving']];
+                    $conditions = [['condition' => 2, 'param' => $mapNum], $conditionLeaving];
+                } elseif ($anim['visited']) {
+                    $mapNum = $mapNums[$anim['visited']];
+                    $conditions = [['condition' => 3, 'param' => $mapNum]];
                 }
 
                 $interlevelAnims[] = [
@@ -486,11 +480,11 @@ class DoomIntermissionConverter {
 
             $interlevel['data']['layers'][] = [
                 'anims'      => $interlevelSplats,
-                'conditions' => $this->addJsonPiece([['condition' => 7, 'param' => 0]]),
+                'conditions' => $this->addJsonPiece([$conditionEntering]),
             ];
             $interlevel['data']['layers'][] = [
                 'anims'      => $interlevelArrows,
-                'conditions' => $this->addJsonPiece([['condition' => 7, 'param' => 0]]),
+                'conditions' => $this->addJsonPiece([$conditionEntering]),
             ];
         }
 
