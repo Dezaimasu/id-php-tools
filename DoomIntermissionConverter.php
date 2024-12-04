@@ -189,22 +189,22 @@ class DoomIntermissionConverter {
             'animations'    => [],
         ];
 
-        $script = $this->getLump($scriptName);
-        $strings = explode("\r\n", $script);
+        $script = strtoupper($this->getLump($scriptName));
+        $strings = array_map('trim', explode("\n", $script));
 
         for ($i = 0, $len = count($strings); $i < $len; $i++) {
             $str = $strings[$i];
 
             if (preg_match('/^BACKGROUND (?<bg>\w{1,8})$/i', $str, $matches)) {
-                $data['bg'] = strtoupper($matches['bg']);
+                $data['bg'] = $matches['bg'];
 
             } elseif (preg_match('/^SPLAT (?<splat>\w{1,8})$/i', $str, $matches)) {
-                $data['splat'] = strtoupper($matches['splat']);
+                $data['splat'] = $matches['splat'];
 
             } elseif (preg_match('/^POINTER (?<p1>\w{1,8}) (?<p2>\w{1,8})$/i', $str, $matches)) {
-                $data['pointers'] = [strtoupper($matches['p1']), strtoupper($matches['p2'])];
+                $data['pointers'] = [$matches['p1'], $matches['p2']];
 
-            } elseif (strtoupper($str) === 'SPOTS' && $strings[$i+1] === '{') {
+            } elseif ($str === 'SPOTS' && $strings[$i+1] === '{') {
                 $i += 2;
                 while (($str = $strings[$i]) !== '}') {
                     [$map, $x, $y] = explode(' ', $str);
@@ -251,7 +251,7 @@ class DoomIntermissionConverter {
 
                     $i += 2;
                     while (($str = $strings[$i]) !== '}') {
-                        $animation['patches'][] = strtoupper($str);
+                        $animation['patches'][] = $str;
                         $i++;
                     }
 
@@ -550,10 +550,10 @@ class DoomIntermissionConverter {
 
 }
 
-DoomIntermissionConverter::convert('D:\Code\_wads\INTMAPEV_GZ.wad', 'D:\Code\_wads\INTMAPEV_GZ', [
-    'title'     => 'TNT: Evilution',
-    'author'    => 'oliacym',
-    'music'     => 'D_DM2INT',
-    'secrets'   => [15 => 31, 31 => 32],
-    'exits'     => [31 => 16, 32 => 16],
+DoomIntermissionConverter::convert('D:\Code\_wads\thyinterpic.wad', 'D:\Code\_wads\thyinterpic', [
+    'title'     => 'Ultimate DOOM E4: Thy Flesh Consumed',
+    'author'    => 'Skunk',
+    'music'     => 'D_INTER',
+    'secrets'   => [2 => 9],
+    'exits'     => [9 => 3],
 ], true, true);
