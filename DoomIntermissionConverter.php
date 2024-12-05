@@ -149,10 +149,6 @@ class DoomIntermissionConverter {
             $this->data['mapinfo'][$i] = $data;
         }
 
-        usort($this->data['mapinfo'], static function($a, $b){
-            return $a['map'] <=> $b['map'];
-        });
-
         $this->data['mapinfo'] = array_combine(
             range(1, count($this->data['mapinfo'])),
             array_values($this->data['mapinfo'])
@@ -329,7 +325,7 @@ class DoomIntermissionConverter {
             $umapinfo .= "}\n\n";
         }
 
-        $this->id24Data['umapinfo'] = $umapinfo;
+        $this->id24Data['umapinfo'] = preg_replace("/\n\n$/", "\n", $umapinfo);
     }
 
     /**
@@ -554,10 +550,10 @@ class DoomIntermissionConverter {
 
 }
 
-DoomIntermissionConverter::convert('D:\Code\_wads\thyinterpic.wad', 'D:\Code\_wads\thyinterpic', [
-    'title'     => 'Ultimate DOOM E4: Thy Flesh Consumed',
-    'author'    => 'Skunk',
-    'music'     => 'D_INTER',
-    'secrets'   => [2 => 9],
-    'exits'     => [9 => 3],
+DoomIntermissionConverter::convert('D:\Code\_wads\INTMAPD2_GZ.wad', 'D:\Code\_wads\INTMAPD2_GZ', [
+    'title'     => 'Doom II',
+    'author'    => 'Oliacym',
+    'music'     => 'D_DM2INT',
+    'secrets'   => [15 => 31, 31 => 32],
+    'exits'     => [31 => 16, 32 => 16],
 ], true, true);
