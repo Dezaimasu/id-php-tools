@@ -66,7 +66,7 @@ class DoomIntermissionConverter {
     /**
      * @param string $wadPath
      * @param string $outputDir
-     * @param array $wadInfo    ['title' => 'WAD name', 'author' => 'original mod author', 'music' => 'Intermission music lump', 'secrets' => [map_num => secret_map_num, ..], 'exits' => [map_num => next_map_num, ..]]
+     * @param array $wadInfo    ['title' => 'WAD name', 'author' => 'original mod author', 'music' => 'Intermission music lump']
      * @param bool $saveGraphics
      * @param bool $debug       If true, lumps from WAD file will be saved on disk to make subsequent runs faster. Otherwise WAD will be parsed on each run.
      * @return self
@@ -122,6 +122,8 @@ class DoomIntermissionConverter {
           [\n\r]+}
         /ix";
 
+        $propsToRead = ['titlepatch', 'enterpic', 'exitpic', 'next', 'secretnext'];
+
         preg_match_all($mapRegex, $zMapinfo, $mapMatches);
         foreach ($mapMatches['map'] as $i => $map) {
             $data = [];
@@ -129,20 +131,16 @@ class DoomIntermissionConverter {
 
             $propsRaw = $mapMatches['props'][$i];
 
-            $propsRegex = /** @lang PhpRegExp*/ "/(?<keys>\w+) = (?<values>[^\n\r]+)/m";
+            $propsRegex = /** @lang PhpRegExp*/ '/(?<keys>\w+) = (?<values>[^\n\r]+)/m';
             preg_match_all($propsRegex, $propsRaw, $propsMatches);
             $props = [];
             foreach ($propsMatches['keys'] as $j => $key) {
                 $props[$key] = $propsMatches['values'][$j];
             }
 
-            if (strpos(@$props['enterpic'], '"$') !== 0 || strpos(@$props['exitpic'], '"$') !== 0) { // TODO: exitpic = "ENDPIC"
-                die("Intermission script not found: {$props['enterpic']}, {$props['exitpic']}");
+            foreach ($propsToRead as $prop) {
+                $data["~$prop"] = $this->unquote(@$props[$prop]);
             }
-
-            $data['levelpic'] = trim(@$props['titlepatch'], '"');
-            $data['enteranim'] = trim($props['enterpic'], '"$');
-            $data['exitanim'] = trim($props['exitpic'], '"$');
 
             $this->data['mapinfo'][$i] = $data;
         }
@@ -152,6 +150,33 @@ class DoomIntermissionConverter {
             range(1, count($this->data['mapinfo'])),
             array_values($this->data['mapinfo'])
         );
+
+        $propsMapping = ['enterpic' => 'enteranim', 'exitpic' => 'exitanim'];
+        foreach ($this->data['mapinfo'] as $mapNum => &$mapinfo) {
+            $mapinfo['levelpic'] = $mapinfo['~titlepatch'];
+
+            foreach ($propsMapping as $propPic => $propAnim) {
+                if (strpos($mapinfo["~$propPic"], '$') === 0) {
+                    $mapinfo[$propAnim] = substr($mapinfo["~$propPic"], 1);
+                } else {
+                    $mapinfo[$propPic] = $mapinfo["~$propPic"]; // TODO: add it to corresponding "interlevel" json
+                }
+            }
+
+            $nextMapinfo = @$this->data['mapinfo'][$mapNum + 1];
+            if ($mapinfo['~next'] && (empty($nextMapinfo) || $mapinfo['~next'] !== $nextMapinfo['map'])) {
+                $mapinfo['next'] = $mapinfo['~next'];
+            }
+
+            if ($mapinfo['~secretnext'] && $mapinfo['~secretnext'] !== $mapinfo['~next']) {
+                $mapinfo['secretnext'] = $mapinfo['~secretnext'];
+            }
+
+            foreach ($propsToRead as $prop) {
+                unset($mapinfo["~$prop"]);
+            }
+        }
+        unset($mapinfo);
     }
 
     /**
@@ -309,13 +334,11 @@ class DoomIntermissionConverter {
             $umapinfo .= "MAP {$mapinfo['map']}\n";
             $umapinfo .= "{\n";
 
-            if (isset($this->wadInfo['exits'][$mapNum])) {
-                $nextMap = $this->data['mapinfo'][$this->wadInfo['exits'][$mapNum]]['map'];
-                $umapinfo .= "  next = \"{$nextMap}\"\n";
+            if (isset($mapinfo['next'])) {
+                $umapinfo .= "  next = \"{$mapinfo['next']}\"\n";
             }
-            if (isset($this->wadInfo['secrets'][$mapNum])) {
-                $nextSecretMap = $this->data['mapinfo'][$this->wadInfo['secrets'][$mapNum]]['map'];
-                $umapinfo .= "  nextsecret = \"{$nextSecretMap}\"\n";
+            if (isset($mapinfo['secretnext'])) {
+                $umapinfo .= "  nextsecret = \"{$mapinfo['secretnext']}\"\n";
             }
 
             $umapinfo .= "  levelpic = \"{$mapinfo['levelpic']}\"\n";
@@ -547,12 +570,25 @@ class DoomIntermissionConverter {
         return '%%%' . array_key_last($this->jsonPieces);
     }
 
+    /**
+     * @param string|null $str
+     * @return string|null
+     */
+    private function unquote(?string $str): ?string{
+        if (!$str) {
+        	return $str;
+        }
+
+        $str = trim($str);
+        $unquoted = trim($str, '"');
+
+        return "\"$unquoted\"" === $str ? $unquoted : $str;
+    }
+
 }
 
 DoomIntermissionConverter::convert('D:\Code\_wads\INTMAPET_GZ.wad', 'D:\Code\_wads\INTMAPET_GZ', [
     'title'     => 'Eviternity',
     'author'    => 'Oliacym',
     'music'     => 'D_DM2INT',
-    'secrets'   => [15 => 31],
-    'exits'     => [32 => 16],
 ], true, true);
