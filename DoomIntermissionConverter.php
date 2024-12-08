@@ -113,11 +113,11 @@ class DoomIntermissionConverter {
      * @return void
      */
     private function readZmapinfo(): void{
-        $zMapinfo = $this->getLump('MAPINFO'); // TODO: might also be ZMAPINFO lump
+        $zMapinfo = $this->getLump('ZMAPINFO'); // TODO: might be MAPINFO or ZMAPINFO lump
 
         $mapRegex = /** @lang PhpRegExp*/ "/
           [\n\r]MAP[ ](?<map>\w{1,8})[^{]*
-          [\n\r]+{
+          [\n\r]*{
           (?<props>[^}]+)
           [\n\r]+}
         /ix";
@@ -129,26 +129,25 @@ class DoomIntermissionConverter {
 
             $propsRaw = $mapMatches['props'][$i];
 
-            $propsRegex = /** @lang PhpRegExp*/ "/(?<keys>\w+) = (?<values>\"[^\"]+\"|[^\n\r]+)/m";
+            $propsRegex = /** @lang PhpRegExp*/ "/(?<keys>\w+) = (?<values>[^\n\r]+)/m";
             preg_match_all($propsRegex, $propsRaw, $propsMatches);
             $props = [];
             foreach ($propsMatches['keys'] as $j => $key) {
-                $value = trim($propsMatches['values'][$j], '"');
-                $props[$key] = $value;
+                $props[$key] = $propsMatches['values'][$j];
             }
 
-            $data['levelpic'] = @$props['titlepatch'];
-            if (strpos(@$props['enterpic'], '$') === 0) {
-                $data['enteranim'] = ltrim($props['enterpic'], '$');
+            if (strpos(@$props['enterpic'], '"$') !== 0 || strpos(@$props['exitpic'], '"$') !== 0) { // TODO: exitpic = "ENDPIC"
+                die("Intermission script not found: {$props['enterpic']}, {$props['exitpic']}");
             }
-            if (strpos(@$props['exitpic'], '$') === 0) {
-                $data['exitanim'] = ltrim($props['exitpic'], '$');
-            }
-            // not trying to read "[secret]next" props since they might be inaccurate
+
+            $data['levelpic'] = trim(@$props['titlepatch'], '"');
+            $data['enteranim'] = trim($props['enterpic'], '"$');
+            $data['exitanim'] = trim($props['exitpic'], '"$');
 
             $this->data['mapinfo'][$i] = $data;
         }
 
+        // indexing "mapinfo" array starting from 1
         $this->data['mapinfo'] = array_combine(
             range(1, count($this->data['mapinfo'])),
             array_values($this->data['mapinfo'])
@@ -550,10 +549,10 @@ class DoomIntermissionConverter {
 
 }
 
-DoomIntermissionConverter::convert('D:\Code\_wads\INTMAPD2_GZ.wad', 'D:\Code\_wads\INTMAPD2_GZ', [
-    'title'     => 'Doom II',
+DoomIntermissionConverter::convert('D:\Code\_wads\INTMAPET_GZ.wad', 'D:\Code\_wads\INTMAPET_GZ', [
+    'title'     => 'Eviternity',
     'author'    => 'Oliacym',
     'music'     => 'D_DM2INT',
-    'secrets'   => [15 => 31, 31 => 32],
-    'exits'     => [31 => 16, 32 => 16],
+    'secrets'   => [15 => 31],
+    'exits'     => [32 => 16],
 ], true, true);
