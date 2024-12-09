@@ -74,7 +74,7 @@ class DoomIntermissionConverter {
     /**
      * @param string $wadPath
      * @param string $outputDir
-     * @param array $wadInfo    ['title' => 'WAD name', 'author' => 'original mod author', 'music' => 'Intermission music lump']
+     * @param array $wadInfo    ['title' => 'WAD name', 'author' => 'original mod author', 'music' => 'Intermission music lump', 'mapinfo_lump' => 'MAPINFO/ZMAPINFO (otherwise it will try to read it from WAD every time)']
      * @param bool $saveGraphics
      * @param bool $debug       If true, lumps from WAD file will be saved on disk to make subsequent runs faster. Otherwise WAD will be parsed on each run.
      * @return self
@@ -121,8 +121,7 @@ class DoomIntermissionConverter {
      * @return void
      */
     private function readZmapinfo(): void{
-        $zMapinfo = $this->getLump('ZMAPINFO'); // TODO: might be MAPINFO or ZMAPINFO lump
-
+        $zMapinfo = $this->getLump($this->wadInfo['mapinfo_lump']);
         $mapRegex = /** @lang PhpRegExp*/ "/
           [\n\r]MAP[ ](?<map>\w{1,8})[^{]*
           [\n\r]*{
@@ -167,17 +166,22 @@ class DoomIntermissionConverter {
                 if (strpos($mapinfo["~$propPic"], '$') === 0) {
                     $mapinfo[$propAnim] = substr($mapinfo["~$propPic"], 1);
                 } else {
-                    $mapinfo[$propPic] = $mapinfo["~$propPic"]; // TODO: add it to corresponding "interlevel" json
+                    $mapinfo[$propPic] = $mapinfo["~$propPic"];
                 }
             }
 
-            $nextMapinfo = @$this->data['mapinfo'][$mapNum + 1];
-            if ($mapinfo['~next'] && (empty($nextMapinfo) || $mapinfo['~next'] !== $nextMapinfo['map'])) {
-                $mapinfo['next'] = $mapinfo['~next'];
-            }
+            if (preg_match('/^endpic, "(?<endpic>\w{1,8})"$/i', $mapinfo['~next'], $matches)) {
+            	$mapinfo['endpic'] = $matches['endpic'];
 
-            if ($mapinfo['~secretnext'] && $mapinfo['~secretnext'] !== $mapinfo['~next']) {
-                $mapinfo['secretnext'] = $mapinfo['~secretnext'];
+            } elseif (strpos($mapinfo['~next'], 'EndGame') !== 0) { // ignore EndGame* for now
+                $nextMapinfo = @$this->data['mapinfo'][$mapNum + 1];
+                if ($mapinfo['~next'] && (empty($nextMapinfo) || $mapinfo['~next'] !== $nextMapinfo['map'])) {
+                    $mapinfo['next'] = $mapinfo['~next'];
+                }
+
+                if ($mapinfo['~secretnext'] && $mapinfo['~secretnext'] !== $mapinfo['~next']) {
+                    $mapinfo['secretnext'] = $mapinfo['~secretnext'];
+                }
             }
 
             foreach ($propsToRead as $prop) {
@@ -279,7 +283,7 @@ class DoomIntermissionConverter {
 
                     $i += 2;
                     while (($str = $strings[$i]) !== '}') {
-                        $animation['patches'][] = $str;
+                        $animation['patches'][] = $str === 'BLANK' ? self::EMPTY_PATCH : $str;
                         $i++;
                     }
 
@@ -342,6 +346,9 @@ class DoomIntermissionConverter {
             $umapinfo .= "MAP {$mapinfo['map']}\n";
             $umapinfo .= "{\n";
 
+            if (isset($mapinfo['endpic'])) {
+                $umapinfo .= "  endpic = \"{$mapinfo['endpic']}\"\n";
+            }
             if (isset($mapinfo['next'])) {
                 $umapinfo .= "  next = \"{$mapinfo['next']}\"\n";
             }
@@ -447,41 +454,41 @@ class DoomIntermissionConverter {
                 $y = (int)$coords['y'];
 
                 $mapNum = $mapNums[$map];
+                $mapinfo = $this->data['mapinfo'][$mapNum];
 
                 $splatCondition = [self::CONDITION_VISITED, $mapNum];
                 $arrowCondition = [self::CONDITION_CURRENT, $mapNum];
 
-                $interlevelSplats[] = $this->anim(
-                    $x,
-                    $y,
-                    [[$data['splat']]],
-                    [$splatCondition]
-                );
+                // Unless $mapinfo has ENTERPIC/EXITPIC, showing splat/arrow correspondingly.
+                // Otherwise showing ENTERPIC/EXITPIC over the whole screen (implied its size is at least the same as background image).
 
-                if (isset($this->data['mapinfo'][$mapNum]['exitpic'])) {
-                    // not actually an arrow, instead show EXITPIC over the whole screen (implied EXITPIC size is at least the same as background image)
-                    $interlevelArrows[] = $this->anim(
+                $interlevelSplats[] = isset($mapinfo['enterpic']) ?
+                    $this->anim(
                         0,
                         0,
-                        [[$this->data['mapinfo'][$mapNum]['exitpic']]],
-                        [$arrowCondition]
-                    );
-
-                } else {
-                    // implied pointers width is 60px, same as Doom pointers
-                    // implied pointer 0 is right aligned, 1 is left aligned, same as Doom pointers
-                    $arrow = $x > 320 - 60 ? $data['pointers'][1] : $data['pointers'][0];
-
-                    $interlevelArrows[] = $this->anim(
+                        [[$mapinfo['enterpic']]],
+                        [$splatCondition]
+                    ) :
+                    $this->anim(
                         $x,
                         $y,
-                        [
-                            [$arrow, self::DURATION_FIXED, 0.667],
-                            [self::EMPTY_PATCH, self::DURATION_FIXED, 0.333]
-                        ],
+                        [[$data['splat']]],
+                        [$splatCondition]
+                    );
+
+                $interlevelArrows[] = isset($mapinfo['exitpic']) ?
+                    $this->anim(
+                        0,
+                        0,
+                        [[$mapinfo['exitpic']]],
+                        [$arrowCondition]
+                    ) :
+                    $this->anim(
+                        $x,
+                        $y,
+                        $this->arrowFrames($x, $data['pointers']),
                         [$arrowCondition]
                     );
-                }
             }
 
             $interlevel['data']['layers'][] = $this->layer($interlevelSplats, [[self::CONDITION_ENTERING]]);
@@ -562,6 +569,22 @@ class DoomIntermissionConverter {
     }
 
     /**
+     * @param int $x
+     * @param string[] $pointers
+     * @return array[]
+     */
+    private function arrowFrames(int $x, array $pointers): array{
+        // implied pointers width is 60px, same as Doom pointers
+        // implied pointer 0 is right aligned, 1 is left aligned, same as Doom pointers
+        $arrow = $x > 320 - 60 ? $pointers[1] : $pointers[0];
+
+        return                         [
+            [$arrow, self::DURATION_FIXED, 0.667],
+            [self::EMPTY_PATCH, self::DURATION_FIXED, 0.333]
+        ];
+    }
+
+    /**
      * @return void
      */
     private function buildCredits(): void{
@@ -635,8 +658,9 @@ class DoomIntermissionConverter {
 
 }
 
-DoomIntermissionConverter::convert('D:\Code\_wads\INTMAPEV_GZ.wad', 'D:\Code\_wads\INTMAPEV_GZ', [
-    'title'     => 'TNT: Evilution',
-    'author'    => 'Oliacym',
-    'music'     => 'D_DM2INT',
+DoomIntermissionConverter::convert('D:\Code\_wads\INTMAPSG_GZ.wad', 'D:\Code\_wads\INTMAPSG_GZ', [
+    'title'         => 'SIGIL',
+    'author'        => 'Oliacym',
+    'music'         => 'D_INTER',
+    'mapinfo_lump'  => 'MAPINFO',
 ], false, true);
