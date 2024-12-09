@@ -33,6 +33,14 @@ class DoomIntermissionConverter {
 
     private const EMPTY_PATCH = 'TNT1A0';
 
+    private const DURATION_INFINITE = 1;
+    private const DURATION_FIXED = 2;
+
+    private const CONDITION_CURRENT = 2;
+    private const CONDITION_VISITED = 3;
+    private const CONDITION_LEAVING = 6;
+    private const CONDITION_ENTERING = 7;
+
     /**
      * @param string $wadPath
      * @param string $outputDir
@@ -369,9 +377,6 @@ class DoomIntermissionConverter {
             array_keys($this->data['mapinfo']),
         );
 
-        $conditionLeaving   = ['condition' => 6, 'param' => 0];
-        $conditionEntering  = ['condition' => 7, 'param' => 0];
-
         $interlevel = [
             'type'      => 'interlevel',
             'version'   => '0.1.0',
@@ -402,52 +407,35 @@ class DoomIntermissionConverter {
                 $lastPatch = array_pop($anim['patches']);
 
                 foreach ($anim['patches'] as $patch) {
-                    $interlevelFrames[] = $this->addJsonPiece([
-                        'image'         => $patch,
-                        'type'          => 2,
-                        'duration'      => $duration,
-                        'maxduration'   => 0,
-                    ]);
+                    $interlevelFrames[] = [$patch, self::DURATION_FIXED, $duration];
                 }
 
-                if ($anim['once'] || $anim['speed'] === null) {
-                    $type = 1;
-                    $duration = 0;
-                } else {
-                    $type = 2;
-                }
+                $interlevelFrames[] = $anim['once'] || $anim['speed'] === null ?
+                    [$lastPatch, self::DURATION_INFINITE] :
+                    [$lastPatch, self::DURATION_FIXED, $duration];
 
-                $interlevelFrames[] = $this->addJsonPiece([
-                    'image'         => $lastPatch,
-                    'type'          => $type,
-                    'duration'      => $duration,
-                    'maxduration'   => 0,
-                ]);
-
-                $conditions = null;
                 if ($anim['entering']) {
                     $nextMapNum = $mapNums[$anim['entering']];
-                    $conditions = [['condition' => 2, 'param' => $nextMapNum], $conditionEntering];
+                    $conditions = [[self::CONDITION_CURRENT, $nextMapNum], [self::CONDITION_ENTERING]];
                 } elseif ($anim['leaving']) {
                     $mapNum = $mapNums[$anim['leaving']];
-                    $conditions = [['condition' => 2, 'param' => $mapNum], $conditionLeaving];
+                    $conditions = [[self::CONDITION_CURRENT, $mapNum], [self::CONDITION_LEAVING]];
                 } elseif ($anim['visited']) {
                     $mapNum = $mapNums[$anim['visited']];
-                    $conditions = [['condition' => 3, 'param' => $mapNum]];
+                    $conditions = [[self::CONDITION_VISITED, $mapNum]];
+                } else {
+                    $conditions = [];
                 }
 
-                $interlevelAnims[] = [
-                    'x'          => (int)$anim['x'],
-                    'y'          => (int)$anim['y'],
-                    'frames'     => $interlevelFrames,
-                    'conditions' => $conditions ? $this->addJsonPiece($conditions) : null,
-                ];
+                $interlevelAnims[] = $this->anim(
+                    (int)$anim['x'],
+                    (int)$anim['y'],
+                    $interlevelFrames,
+                    $conditions
+                );
             }
 
-            $interlevel['data']['layers'][] = [
-                'anims'      => $interlevelAnims,
-                'conditions' => null,
-            ];
+            $interlevel['data']['layers'][] = $this->layer($interlevelAnims);
         }
 
         if (!empty($data['spots'])) {
@@ -460,57 +448,117 @@ class DoomIntermissionConverter {
 
                 $mapNum = $mapNums[$map];
 
-                $interlevelSplats[] = [
-                    'x' => $x,
-                    'y' => $y,
-                    'frames' => $this->addJsonPiece([[
-                        'image'         => $data['splat'],
-                        'type'          => 1,
-                        'duration'      => 0,
-                        'maxduration'   => 0,
-                    ]]),
-                    'conditions' => $this->addJsonPiece([[
-                        'condition' => 3,
-                        'param'     => $mapNum,
-                    ]]),
-                ];
+                $splatCondition = [self::CONDITION_VISITED, $mapNum];
+                $arrowCondition = [self::CONDITION_CURRENT, $mapNum];
 
-                // implied pointers width is 60px, same as Doom pointers
-                // implied pointer 0 is right aligned, 1 is left aligned, same as Doom pointers
-                $arrow = $x > 320 - 60 ? $data['pointers'][1] : $data['pointers'][0];
+                $interlevelSplats[] = $this->anim(
+                    $x,
+                    $y,
+                    [[$data['splat']]],
+                    [$splatCondition]
+                );
 
-                $interlevelArrows[] = [
-                    'x' => $x,
-                    'y' => $y,
-                    'frames' => [$this->addJsonPiece([
-                        'image'         => $arrow,
-                        'type'          => 2,
-                        'duration'      => 0.667,
-                        'maxduration'   => 0,
-                    ]), $this->addJsonPiece([
-                        'image'         => self::EMPTY_PATCH,
-                        'type'          => 2,
-                        'duration'      => 0.333,
-                        'maxduration'   => 0,
-                    ])],
-                    'conditions' => $this->addJsonPiece([[
-                        'condition' => 2,
-                        'param'     => $mapNum,
-                    ]]),
-                ];
+                if (isset($this->data['mapinfo'][$mapNum]['exitpic'])) {
+                    // not actually an arrow, instead show EXITPIC over the whole screen (implied EXITPIC size is at least the same as background image)
+                    $interlevelArrows[] = $this->anim(
+                        0,
+                        0,
+                        [[$this->data['mapinfo'][$mapNum]['exitpic']]],
+                        [$arrowCondition]
+                    );
+
+                } else {
+                    // implied pointers width is 60px, same as Doom pointers
+                    // implied pointer 0 is right aligned, 1 is left aligned, same as Doom pointers
+                    $arrow = $x > 320 - 60 ? $data['pointers'][1] : $data['pointers'][0];
+
+                    $interlevelArrows[] = $this->anim(
+                        $x,
+                        $y,
+                        [
+                            [$arrow, self::DURATION_FIXED, 0.667],
+                            [self::EMPTY_PATCH, self::DURATION_FIXED, 0.333]
+                        ],
+                        [$arrowCondition]
+                    );
+                }
             }
 
-            $interlevel['data']['layers'][] = [
-                'anims'      => $interlevelSplats,
-                'conditions' => $this->addJsonPiece([$conditionEntering]),
-            ];
-            $interlevel['data']['layers'][] = [
-                'anims'      => $interlevelArrows,
-                'conditions' => $this->addJsonPiece([$conditionEntering]),
-            ];
+            $interlevel['data']['layers'][] = $this->layer($interlevelSplats, [[self::CONDITION_ENTERING]]);
+            $interlevel['data']['layers'][] = $this->layer($interlevelArrows, [[self::CONDITION_ENTERING]]);
         }
 
         $this->id24Data['interlevels'][$data['script_name']] = $interlevel;
+    }
+
+    /**
+     * @param array $anims
+     * @param array $conditions
+     * @return array
+     */
+    private function layer(array $anims, array $conditions = []): array{
+        return [
+            'anims'      => $anims,
+            'conditions' => $this->conditions(...$conditions),
+        ];
+    }
+
+    /**
+     * @param int $x
+     * @param int $y
+     * @param array $frames
+     * @param array $conditions
+     * @return array
+     */
+    private function anim(int $x, int $y, array $frames, array $conditions): array{
+        $anim = [
+            'x'          => $x,
+            'y'          => $y,
+            'frames'     => [],
+            'conditions' => $this->conditions(...$conditions),
+        ];
+
+        foreach ($frames as $frameData) {
+            $anim['frames'][] = $this->frame(...$frameData);
+        }
+
+
+        return $anim;
+    }
+
+    /**
+     * @param string $image
+     * @param int $type
+     * @param float $duration
+     * @return string
+     */
+    private function frame(string $image, int $type = self::DURATION_INFINITE, float $duration = 0): string{
+        return $this->addJsonPiece([
+            'image'         => $image,
+            'type'          => $type,
+            'duration'      => $duration,
+            'maxduration'   => 0,
+        ]);
+    }
+
+    /**
+     * @param array ...$rawConditions
+     * @return string|null
+     */
+    private function conditions(array ...$rawConditions): ?string{
+        if (empty($rawConditions)) {
+        	return null;
+        }
+
+        $conditions = [];
+        foreach ($rawConditions as $rawCondition) {
+            $conditions[] = [
+                'condition' => $rawCondition[0],
+                'param'     => $rawCondition[1] ?? 0,
+            ];
+        }
+
+        return $this->addJsonPiece($conditions);
     }
 
     /**
@@ -587,8 +635,8 @@ class DoomIntermissionConverter {
 
 }
 
-DoomIntermissionConverter::convert('D:\Code\_wads\INTMAPET_GZ.wad', 'D:\Code\_wads\INTMAPET_GZ', [
-    'title'     => 'Eviternity',
+DoomIntermissionConverter::convert('D:\Code\_wads\INTMAPEV_GZ.wad', 'D:\Code\_wads\INTMAPEV_GZ', [
+    'title'     => 'TNT: Evilution',
     'author'    => 'Oliacym',
     'music'     => 'D_DM2INT',
-], true, true);
+], false, true);
