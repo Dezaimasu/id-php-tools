@@ -24,6 +24,7 @@ class DoomWadParser {
         'unknown'       => [],
     ];
 
+    private ZipArchive $pk3;
     private string $wad;
     private bool $showProgress;
 
@@ -49,10 +50,19 @@ class DoomWadParser {
      */
     private function __construct(string $filepath, bool $showProgress = false){
         $this->showProgress = $showProgress;
-        $this->wad = file_get_contents($filepath);
+        $extension = strtoupper(pathinfo($filepath)['extension']);
 
-        $this->readHeader();
-        $this->readDirectory();
+        if ($extension === 'WAD') {
+            $this->wad = file_get_contents($filepath);
+            $this->readHeader();
+            $this->readDirectory();
+
+        } elseif ($extension === 'PK3') {
+            $this->pk3 = new ZipArchive();
+            $this->pk3->open($filepath);
+            $this->readPk3();
+        }
+
         $this->readLumps();
     }
 
@@ -99,6 +109,25 @@ class DoomWadParser {
                 $str .= "\e[{$bgColors[$char['bg_color']]};{$fgColors[$char['fg_color']]}{$blink}m{$char['char']}";
             }
             echo "$str\n";
+        }
+    }
+
+    /**
+     *
+     */
+    private function readPk3(): void{
+        for ($i = 0; $i < $this->pk3->numFiles; $i++) {
+            $details = $this->pk3->statIndex($i);
+            if ($details['size'] === 0 && substr($details['name'], -1) === '/') {
+                continue;
+            }
+
+            $this->directory[$details['index']] = [
+                'filepos'   => null,
+                'size'      => $details['size'],
+                'name'      => basename($details['name']),
+                'path'      => $details['name'], // not used atm
+            ];
         }
     }
 
@@ -694,17 +723,22 @@ class DoomWadParser {
      */
     private function getLumpByIndex(int $lumpIndex): array{
         $lumpInfo = $this->directory[$lumpIndex];
-        $lump = substr($this->wad, $lumpInfo['filepos'], $lumpInfo['size']);
+
+        if (!empty($this->wad)) {
+            $lump = substr($this->wad, $lumpInfo['filepos'], $lumpInfo['size']);
+        } elseif (!empty($this->pk3)) {
+        	$lump = $this->pk3->getFromIndex($lumpIndex);
+        }
 
         return [
             'name' => $lumpInfo['name'],
-            'lump' => $lump,
+            'lump' => $lump ?? '',
         ];
     }
 
     /**
      * @param string        $category
-     * @param               $parsedLump
+     * @param mixed         $parsedLump
      * @param string|null   $lumpName
      */
     private function setLump(string $category, $parsedLump, string $lumpName = null): void{
