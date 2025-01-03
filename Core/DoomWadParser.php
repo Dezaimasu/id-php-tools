@@ -1,5 +1,7 @@
 <?php
 
+namespace Core;
+
 class DoomWadParser {
 
     /**
@@ -24,7 +26,7 @@ class DoomWadParser {
         'unknown'       => [],
     ];
 
-    private ZipArchive $pk3;
+    private \ZipArchive $pk3;
     private string $wad;
     private bool $showProgress;
 
@@ -58,7 +60,7 @@ class DoomWadParser {
             $this->readDirectory();
 
         } elseif ($extension === 'PK3') {
-            $this->pk3 = new ZipArchive();
+            $this->pk3 = new \ZipArchive();
             $this->pk3->open($filepath);
             $this->readPk3();
         }
@@ -812,6 +814,3 @@ class DoomWadParser {
     }
 
 }
-
-//$wad = DoomWadParser::open('E:\Doom\IWADs\DOOM.WAD');
-//$wad->savePicture('FLOOR0_1', 'E:\Doom\IWADs');

@@ -1,12 +1,12 @@
 <?php
 
-require_once '../DoomWadParser.php';
+namespace Tests;
 
-class DoomWadParserTest {
+abstract class Test {
 
-    private string $testDir = 'D:\Code\_wads\_tests';
+    protected string $testDir = 'D:\Code\_wads\_tests';
 
-    private bool $generateExpected;
+    protected bool $generateExpected;
 
     /**
      * @param bool $generateExpected
@@ -18,25 +18,14 @@ class DoomWadParserTest {
     /**
      * @return void
      */
-    public function test(): void{
-        $this->testOpen('DOOM.WAD');
-
-        $this->testOpen('PLUTONIA.WAD');
-    }
+    abstract public function test(): void;
 
     /**
      * @param string $wadFile
+     * @param array $results
      * @return void
      */
-    private function testOpen(string $wadFile): void{
-        $wad = DoomWadParser::open("$this->testDir\\$wadFile", false);
-
-        $results = [
-            'header'    => $wad->header,
-            'directory' => $wad->directory,
-            'lumps'     => $wad->lumps,
-        ];
-
+    protected function checkResults(string $wadFile, array $results): void{
         $testResultsFile = "$this->testDir\\$wadFile-expected.serialized";
 
         if ($this->generateExpected) {
@@ -58,6 +47,5 @@ class DoomWadParserTest {
             echo "-------------------------------------------------- $wadFile SUCCESS --------------------------------------------------\n";
         }
     }
-}
 
-(new DoomWadParserTest())->test();
+}

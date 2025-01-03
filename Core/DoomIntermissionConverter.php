@@ -1,6 +1,6 @@
 <?php
 
-require_once 'DoomWadParser.php';
+namespace Core;
 
 class DoomIntermissionConverter {
 
@@ -657,10 +657,3 @@ class DoomIntermissionConverter {
     }
 
 }
-
-DoomIntermissionConverter::convert('D:\Code\_wads\INTMAPSG_GZ.wad', 'D:\Code\_wads\INTMAPSG_GZ', [
-    'title'         => 'SIGIL',
-    'author'        => 'Oliacym',
-    'music'         => 'D_INTER',
-    'mapinfo_lump'  => 'MAPINFO',
-], false, true);

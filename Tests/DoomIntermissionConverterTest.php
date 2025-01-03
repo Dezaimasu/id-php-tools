@@ -1,19 +1,10 @@
 <?php
 
-require '../DoomIntermissionConverter.php';
+namespace Tests;
 
-class DoomIntermissionConverterTest {
+use Core\DoomIntermissionConverter;
 
-    private string $testDir = 'D:\Code\_wads\_tests';
-
-    private bool $generateExpected;
-
-    /**
-     * @param bool $generateExpected
-     */
-    public function __construct(bool $generateExpected = false){
-        $this->generateExpected = $generateExpected;
-    }
+class DoomIntermissionConverterTest extends Test {
 
     /**
      * @return void
@@ -63,9 +54,9 @@ class DoomIntermissionConverterTest {
 
         DoomIntermissionConverter::convert("$this->testDir\\$wadFile", $outputDir, $wadInfo, true, true);
 
-        $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($outputDir));
+        $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($outputDir));
         foreach ($it as $file) {
-            /** @var SplFileInfo $file */
+            /** @var \SplFileInfo $file */
             if (in_array($file->getBasename(), ['.', '..'])) {
                 continue;
             }
@@ -85,25 +76,6 @@ class DoomIntermissionConverterTest {
             $results[$filepath] = $contents;
         }
 
-        $testResultsFile = "$this->testDir\\$wadFile-expected.json";
-
-        if ($this->generateExpected) {
-            file_put_contents($testResultsFile, json_encode($results));
-            return;
-        }
-
-        $expected = json_decode(file_get_contents($testResultsFile), true);
-
-        if ($expected !== $results) {
-            foreach (array_diff_assoc($expected, $results) as $filepath => $expectedContents) {
-                echo "-------------------------------------------------- $wadFile EXPECTED --------------------------------------------------\n$expectedContents\n";
-                echo "-------------------------------------------------- $wadFile GOT --------------------------------------------------\n$results[$filepath]\n";
-                echo "--------------------------------------------------------------------------------\n";
-            }
-        } else {
-            echo "-------------------------------------------------- $wadFile SUCCESS --------------------------------------------------\n";
-        }
+        $this->checkResults($wadFile, $results);
     }
 }
-
-(new DoomIntermissionConverterTest())->test();
