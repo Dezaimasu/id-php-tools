@@ -47,12 +47,12 @@ class DoomIntermissionConverterTest extends Test {
     private function testConvert(string $wadFile, array $wadInfo): void{
         $results = [];
 
-        $outputDir = "$this->testDir\\$wadFile-results";
+        $outputDir = $this->testDirPath("$wadFile-results");
         if (is_dir($outputDir)) {
             exec("rmdir /S /Q \"$outputDir\"");
         }
 
-        DoomIntermissionConverter::convert("$this->testDir\\$wadFile", $outputDir, $wadInfo, true, true);
+        DoomIntermissionConverter::convert($this->testDirPath($wadFile), $outputDir, $wadInfo, true, true);
 
         $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($outputDir));
         foreach ($it as $file) {

@@ -20,7 +20,7 @@ class DoomWadParserTest extends Test{
      * @return void
      */
     private function testOpen(string $wadFile): void{
-        $wad = DoomWadParser::open("$this->testDir\\$wadFile", false);
+        $wad = DoomWadParser::open($this->testDirPath($wadFile), false);
 
         $this->checkResults($wadFile, [
             'header'    => $wad->header,

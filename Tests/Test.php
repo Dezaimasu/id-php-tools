@@ -4,8 +4,6 @@ namespace Tests;
 
 abstract class Test {
 
-    protected string $testDir = 'D:\Code\_wads\_tests';
-
     protected bool $generateExpected;
 
     /**
@@ -26,7 +24,7 @@ abstract class Test {
      * @return void
      */
     protected function checkResults(string $wadFile, array $results): void{
-        $testResultsFile = "$this->testDir\\$wadFile-expected.serialized";
+        $testResultsFile = $this->testDirPath("$wadFile-expected.serialized");
 
         if ($this->generateExpected) {
             if (!file_exists($testResultsFile)) {
@@ -46,6 +44,13 @@ abstract class Test {
         } else {
             echo "-------------------------------------------------- $wadFile SUCCESS --------------------------------------------------\n";
         }
+    }
+
+    protected function testDirPath(string $testName): string{
+        $testDir = 'D:\Code\_wads\_tests';
+        $filename = basename((new \ReflectionClass($this))->getFileName());
+
+        return "$testDir\\$filename\\$testName";
     }
 
 }
