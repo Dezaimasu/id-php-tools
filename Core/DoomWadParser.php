@@ -645,10 +645,17 @@ class DoomWadParser {
             $postStart = 0;
             $postEnd = null;
             $byteNum = 0;
+            $totalPixels = 0;
 
-            while (($byte = ord($lump[$colOffset + $byteNum])) !== 255) {
+            do {
+                $byte = ord($lump[$colOffset + $byteNum]);
+
                 if ($byteNum === $postStart) {
                     $rowStart = $byte;
+                    if ($rowStart === 255) {
+                        break;
+                    }
+
                     $postId = "$colNum-$rowStart";
 
                     $picture['posts'][$postId] = [
@@ -664,12 +671,14 @@ class DoomWadParser {
                     $postEnd = $postStart + $pixelsCount + 3;
                 } elseif ($byteNum >= $postStart + 3 && $byteNum < $postEnd) {
                     $picture['posts'][$postId]['pixels'][] = $byte;
+                    $totalPixels++;
                 } elseif ($byteNum === $postEnd) {
                     $postStart = $byteNum + 1;
                 }
 
                 $byteNum++;
-            }
+
+            } while ($totalPixels <= $picture['height']);
         }
 
         $picture['posts'] = array_values($picture['posts']);
