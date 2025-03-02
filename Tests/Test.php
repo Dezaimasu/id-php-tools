@@ -52,7 +52,7 @@ abstract class Test {
      * @return string
      */
     protected function testDirPath(string $testName): string{
-        $testDir = 'D:\Code\_wads\_tests';
+        $testDir = DIR_ROOT . '\_tests';
         $filename = basename((new \ReflectionClass($this))->getFileName());
 
         return "$testDir\\$filename\\$testName";

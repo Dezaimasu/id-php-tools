@@ -232,8 +232,8 @@ class DoomWadParser {
             }
         }
 
-        if (empty($this->lumps['palettes']) && file_exists('PLAYPAL')) {
-            $this->readPalettes(0, file_get_contents('PLAYPAL'));
+        if (empty($this->lumps['palettes']) && file_exists(WAD_PLAYPAL)) {
+            $this->readPalettes(0, file_get_contents(WAD_PLAYPAL));
         }
     }
 

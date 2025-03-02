@@ -172,6 +172,7 @@ class DoomIntermissionConverter {
 
             if (preg_match('/^endpic, "(?<endpic>\w{1,8})"$/i', $mapinfo['~next'], $matches)) {
             	$mapinfo['endpic'] = $matches['endpic'];
+                // TODO: save 'endpic' graphics (INTMAPSG_GZ has it)
 
             } elseif (strpos($mapinfo['~next'], 'EndGame') !== 0) { // ignore EndGame* for now
                 $nextMapinfo = @$this->data['mapinfo'][$mapNum + 1];
@@ -181,6 +182,7 @@ class DoomIntermissionConverter {
 
                 if ($mapinfo['~secretnext'] && $mapinfo['~secretnext'] !== $mapinfo['~next']) {
                     $mapinfo['secretnext'] = $mapinfo['~secretnext'];
+                    // TODO: only add 'secretnext' if the map actually has secret exit
                 }
             }
 
@@ -330,6 +332,10 @@ class DoomIntermissionConverter {
             ($potentiallyExternal && empty($this->wad))
         ) {
         	return;
+        }
+
+        if (empty($this->wad)) {
+            $this->wad = DoomWadParser::open($this->wadPath);
         }
 
         $this->wad->savePicture($lumpName, $this->outputDir);
