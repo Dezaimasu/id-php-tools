@@ -725,7 +725,13 @@ class DoomWadParser {
         $tmpFilepath = "$filepath.tmp";
         @unlink($tmpFilepath);
         imagepng($gd, $tmpFilepath);
-        shell_exec("pngquant 256 $tmpFilepath --output $filepath");
+        shell_exec(BIN_PNGQUANT . " 256 $tmpFilepath --output \"$filepath\"");
+
+        $offsetX = $pixelData['left_offset'] ?? 0;
+        $offsetY = $pixelData['top_offset'] ?? 0;
+        if ($offsetX > 0 || $offsetY > 0) {
+            shell_exec(BIN_GRABPNG . " -grab $offsetX $offsetY \"$filepath\"");
+        }
     }
 
     /**
