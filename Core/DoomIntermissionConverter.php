@@ -21,6 +21,7 @@ class DoomIntermissionConverter {
     private array $data = [
         'mapinfo'       => [],
         'intermissions' => [],
+        'endpic'        => null,
     ];
     private array $id24Data = [
         'umapinfo'      => '',
@@ -60,15 +61,15 @@ class DoomIntermissionConverter {
         $this->readZmapinfo();
         $this->readIntermissionScripts();
 
-        if ($saveGraphics) {
-            $this->saveGraphics();
-        }
-
         $this->buildUmapinfo();
         $this->buildInterlevels();
         $this->buildCredits();
 
         $this->saveLumps();
+
+        if ($saveGraphics) {
+            $this->saveGraphics();
+        }
     }
 
     /**
@@ -172,7 +173,7 @@ class DoomIntermissionConverter {
 
             if (preg_match('/^endpic, "(?<endpic>\w{1,8})"$/i', $mapinfo['~next'], $matches)) {
             	$mapinfo['endpic'] = $matches['endpic'];
-                // TODO: save 'endpic' graphics (INTMAPSG_GZ has it)
+                $this->data['endpic'] = $mapinfo['endpic'];
 
             } elseif (strpos($mapinfo['~next'], 'EndGame') !== 0) { // ignore EndGame* for now
                 $nextMapinfo = @$this->data['mapinfo'][$mapNum + 1];
@@ -317,6 +318,8 @@ class DoomIntermissionConverter {
                 }
             }
         }
+
+        $this->savePng($this->data['endpic']);
     }
 
     /**

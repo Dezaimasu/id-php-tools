@@ -82,6 +82,12 @@ abstract class Test {
             }
         }
 
+        foreach ($arr2 as $key => $value) {
+            if (!isset($arr1[$key])) {
+                $diff[$key] = "MISSING: $key";
+            }
+        }
+
         return $diff;
     }
 
