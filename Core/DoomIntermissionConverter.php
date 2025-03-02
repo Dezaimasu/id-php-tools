@@ -130,7 +130,7 @@ class DoomIntermissionConverter {
           [\n\r]+}
         /ix";
 
-        $propsToRead = ['titlepatch', 'enterpic', 'exitpic', 'next', 'secretnext'];
+        $propsToRead = ['titlepatch', 'enterpic', 'exitpic', 'next', 'secretnext', 'music'];
 
         preg_match_all($mapRegex, $zMapinfo, $mapMatches);
         foreach ($mapMatches['map'] as $i => $map) {
@@ -185,6 +185,10 @@ class DoomIntermissionConverter {
                     $mapinfo['secretnext'] = $mapinfo['~secretnext'];
                     // TODO: only add 'secretnext' if the map actually has secret exit
                 }
+            }
+
+            if (!empty($mapinfo['~music'])) {
+                $mapinfo['music'] = $mapinfo['~music'];
             }
 
             foreach ($propsToRead as $prop) {
@@ -363,6 +367,9 @@ class DoomIntermissionConverter {
             }
             if (isset($mapinfo['secretnext'])) {
                 $umapinfo .= "  nextsecret = \"{$mapinfo['secretnext']}\"\n";
+            }
+            if (isset($mapinfo['music'])) {
+                $umapinfo .= "  music = \"{$mapinfo['music']}\"\n";
             }
 
             $umapinfo .= "  levelpic = \"{$mapinfo['levelpic']}\"\n";
