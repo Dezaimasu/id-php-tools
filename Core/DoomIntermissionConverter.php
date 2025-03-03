@@ -90,7 +90,7 @@ class DoomIntermissionConverter {
      */
     private function getLump(string $lumpName): ?string{
         if (empty($this->tmpDir)) {
-        	return $this->getLumpFromWad($lumpName);
+            return $this->getLumpFromWad($lumpName);
         }
 
         $tmpFilePath = "$this->tmpDir/$lumpName";
@@ -172,10 +172,13 @@ class DoomIntermissionConverter {
             }
 
             if (preg_match('/^endpic, "(?<endpic>\w{1,8})"$/i', $mapinfo['~next'], $matches)) {
-            	$mapinfo['endpic'] = $matches['endpic'];
+                $mapinfo['endpic'] = $matches['endpic'];
                 $this->data['endpic'] = $mapinfo['endpic'];
 
-            } elseif (strpos($mapinfo['~next'], 'EndGame') !== 0) { // ignore EndGame* for now
+            } elseif ($mapinfo['~next'] === 'EndGameC') {
+                $mapinfo['endcast'] = true;
+
+            } elseif (strpos($mapinfo['~next'], 'EndGame') !== 0) {
                 $nextMapinfo = @$this->data['mapinfo'][$mapNum + 1];
                 if ($mapinfo['~next'] && (empty($nextMapinfo) || $mapinfo['~next'] !== $nextMapinfo['map'])) {
                     $mapinfo['next'] = $mapinfo['~next'];
@@ -187,7 +190,7 @@ class DoomIntermissionConverter {
                 }
             }
 
-            if (!empty($mapinfo['~music'])) {
+            if (!empty($mapinfo['~music']) && strpos($mapinfo['~music'], '$') === false) {
                 $mapinfo['music'] = $mapinfo['~music'];
             }
 
@@ -338,7 +341,7 @@ class DoomIntermissionConverter {
             file_exists("$this->outputDir/$lumpName.png") ||
             ($potentiallyExternal && empty($this->wad))
         ) {
-        	return;
+            return;
         }
 
         if (empty($this->wad)) {
@@ -370,6 +373,9 @@ class DoomIntermissionConverter {
             }
             if (isset($mapinfo['music'])) {
                 $umapinfo .= "  music = \"{$mapinfo['music']}\"\n";
+            }
+            if (!empty($mapinfo['endcast'])) {
+                $umapinfo .= "  endcast = true\n";
             }
 
             $umapinfo .= "  levelpic = \"{$mapinfo['levelpic']}\"\n";
@@ -417,7 +423,7 @@ class DoomIntermissionConverter {
         ];
 
         if (empty($data['spots']) && empty($data['animations'])) {
-        	$interlevel['data']['layers'] = null;
+            $interlevel['data']['layers'] = null;
         }
 
         if (!empty($data['animations'])) {
@@ -462,8 +468,8 @@ class DoomIntermissionConverter {
         }
 
         if (!empty($data['spots'])) {
-        	$interlevelSplats = [];
-        	$interlevelArrows = [];
+            $interlevelSplats = [];
+            $interlevelArrows = [];
 
             foreach ($data['spots'] as $map => $coords) {
                 $x = (int)$coords['x'];
@@ -570,7 +576,7 @@ class DoomIntermissionConverter {
      */
     private function conditions(array ...$rawConditions): ?string{
         if (empty($rawConditions)) {
-        	return null;
+            return null;
         }
 
         $conditions = [];
@@ -663,7 +669,7 @@ class DoomIntermissionConverter {
      */
     private function unquote(?string $str): ?string{
         if (!$str) {
-        	return $str;
+            return $str;
         }
 
         $str = trim($str);
